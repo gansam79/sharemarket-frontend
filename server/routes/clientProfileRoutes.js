@@ -1,35 +1,49 @@
 import express from "express";
 import ClientProfile from "../models/ClientProfile.js";
 
+
 const router = express.Router();
 
+// GET: Fetch paginated client profiles
 router.get("/", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 20, 100);
   const skip = (page - 1) * limit;
   const q = (req.query.q || "").toString().trim();
+
+  // Search across shareholderName, panNumber, and companies
   const filter = q
     ? {
         $or: [
           { "shareholderName.name1": { $regex: q, $options: "i" } },
+          { "shareholderName.name2": { $regex: q, $options: "i" } },
+          { "shareholderName.name3": { $regex: q, $options: "i" } },
           { panNumber: { $regex: q, $options: "i" } },
-          { companyName: { $regex: q, $options: "i" } },
+          { "companies.companyName": { $regex: q, $options: "i" } },
+          { "companies.isinNumber": { $regex: q, $options: "i" } },
         ],
       }
     : {};
+
   const [items, total] = await Promise.all([
-    ClientProfile.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    ClientProfile.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
     ClientProfile.countDocuments(filter),
   ]);
+
   res.json({ data: items, page, limit, total });
 });
 
+// GET by ID
 router.get("/:id", async (req, res) => {
   const item = await ClientProfile.findById(req.params.id);
   if (!item) return res.status(404).json({ error: "Not found" });
   res.json(item);
 });
 
+// POST: Create new client profile
 router.post("/", async (req, res) => {
   try {
     const created = await ClientProfile.create(req.body);
@@ -39,9 +53,14 @@ router.post("/", async (req, res) => {
   }
 });
 
+// PUT: Update client profile
 router.put("/:id", async (req, res) => {
   try {
-    const updated = await ClientProfile.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const updated = await ClientProfile.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
     if (!updated) return res.status(404).json({ error: "Not found" });
     res.json(updated);
   } catch (e) {
@@ -49,6 +68,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+// DELETE: Remove a profile
 router.delete("/:id", async (req, res) => {
   const deleted = await ClientProfile.findByIdAndDelete(req.params.id);
   if (!deleted) return res.status(404).json({ error: "Not found" });

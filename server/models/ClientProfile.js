@@ -2,38 +2,84 @@ import mongoose from "mongoose";
 
 const { Schema, model } = mongoose;
 
-const ClientProfileSchema = new Schema(
+// Distinctive number sub-schema
+const DistinctiveSchema = new Schema(
   {
-    shareholderName: {
-      name1: { type: String, required: true, trim: true },
-      name2: { type: String, trim: true },
-      name3: { type: String, trim: true },
-    },
-    panNumber: { type: String, required: true, uppercase: true, trim: true, index: true },
-    address: { type: String, trim: true },
-    bankDetails: {
-      bankNumber: { type: String, trim: true },
-      branch: { type: String, trim: true },
-      bankName: { type: String, trim: true },
-      ifscCode: { type: String, uppercase: true, trim: true },
-      micrCode: { type: String, trim: true },
-    },
-    dematAccountNumber: { type: String, trim: true },
-    companyName: { type: String, trim: true },
+    from: { type: String, trim: true },
+    to: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
+// Company sub-schema
+const CompanySchema = new Schema(
+  {
+    companyName: { type: String, required: true, trim: true },
     isinNumber: { type: String, trim: true },
     folioNumber: { type: String, trim: true },
     certificateNumber: { type: String, trim: true },
-    distinctiveNumber: {
-      from: { type: String, trim: true },
-      to: { type: String, trim: true },
+    distinctiveNumber: DistinctiveSchema,
+  },
+  { _id: true } // allow multiple companies
+);
+
+// Bank details sub-schema
+const BankDetailsSchema = new Schema(
+  {
+    bankNumber: { type: String, trim: true },
+    branch: { type: String, trim: true },
+    bankName: { type: String, trim: true },
+    ifscCode: { type: String, uppercase: true, trim: true },
+    micrCode: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
+// Shareholder names sub-schema
+const ShareholderNameSchema = new Schema(
+  {
+    name1: { type: String, required: true, trim: true },
+    name2: { type: String, trim: true },
+    name3: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
+// Dividend sub-schema
+const DividendSchema = new Schema(
+  {
+    amount: { type: Number, default: 0 },
+    date: { type: Date },
+  },
+  { _id: false }
+);
+
+const ClientProfileSchema = new Schema(
+  {
+    shareholderName: ShareholderNameSchema,
+    panNumber: {
+      type: String,
+      required: true,
+      uppercase: true,
+      trim: true,
+      index: true,
     },
+    address: { type: String, trim: true },
+    bankDetails: BankDetailsSchema,
+    dematAccountNumber: { type: String, trim: true },
+
+    // Array of multiple companies
+    companies: [CompanySchema],
+
     currentDate: { type: Date, default: Date.now },
-    status: { type: String, enum: ["Active", "Closed", "Pending", "Suspended"], default: "Active", index: true },
-    remarks: { type: String, trim: true },
-    dividend: {
-      amount: { type: Number, default: 0 },
-      date: { type: Date },
+    status: {
+      type: String,
+      enum: ["Active", "Closed", "Pending", "Suspended"],
+      default: "Active",
+      index: true,
     },
+    remarks: { type: String, trim: true },
+    dividend: DividendSchema,
   },
   { timestamps: true }
 );
