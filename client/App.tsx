@@ -11,7 +11,7 @@ import NotFound from "./pages/NotFound";
 import AppLayout from "@/components/layout/AppLayout";
 import { StoreProvider } from "@/state/store";
 import Transfers from "@/pages/Transfers";
-import Shareholders from "@/pages/Shareholders";
+import Shareholders from "@/pages/Shareholders"; 
 import Stockholders from "@/pages/Stockholders";
 import DmatAccounts from "@/pages/DmatAccounts";
 import ClientProfiles from "@/pages/ClientProfiles";
