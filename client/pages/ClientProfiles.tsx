@@ -78,7 +78,22 @@ export default function ClientProfiles() {
 
   const { data, isFetching } = useQuery<Paginated<ClientProfile>>({ 
     queryKey: ["client-profiles", page, q], 
-    queryFn: async () => (await api.get<Paginated<ClientProfile>>("/client-profiles", { params: { page, limit: 10, q } })).data 
+    queryFn: async () => {
+      const response = await api.get<any>("/client-profiles", { 
+        params: { page, limit: 10, q } 
+      });
+      
+      // Map the API response to match your ClientProfile interface
+      const mappedData = {
+        ...response.data,
+        data: response.data.data.map((item: any) => ({
+          ...item,
+          shareHoldings: item.companies || [] // Map companies to shareHoldings
+        }))
+      };
+      
+      return mappedData;
+    }
   });
 
   const createMutation = useMutation({
