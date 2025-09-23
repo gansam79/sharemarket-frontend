@@ -48,7 +48,7 @@ export default function ClientProfiles() {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  
+
   const emptyShareHolding: ShareHolding = {
     companyName: "",
     isinNumber: "",
@@ -76,13 +76,13 @@ export default function ClientProfiles() {
   const [form, setForm] = useState<Payload>(empty);
   const [editing, setEditing] = useState<ClientProfile | null>(null);
 
-  const { data, isFetching } = useQuery<Paginated<ClientProfile>>({ 
-    queryKey: ["client-profiles", page, q], 
+  const { data, isFetching } = useQuery<Paginated<ClientProfile>>({
+    queryKey: ["client-profiles", page, q],
     queryFn: async () => {
-      const response = await api.get<any>("/client-profiles", { 
-        params: { page, limit: 10, q } 
+      const response = await api.get<any>("/client-profiles", {
+        params: { page, limit: 10, q }
       });
-      
+
       // Map the API response to match your ClientProfile interface
       const mappedData = {
         ...response.data,
@@ -91,32 +91,32 @@ export default function ClientProfiles() {
           shareHoldings: item.companies || [] // Map companies to shareHoldings
         }))
       };
-      
+
       return mappedData;
     }
   });
 
   const createMutation = useMutation({
     mutationFn: async (payload: Payload) => (await api.post<ClientProfile>("/client-profiles", payload)).data,
-    onSuccess: () => { 
-      qc.invalidateQueries({ queryKey: ["client-profiles"] }); 
-      setOpen(false); 
-      setForm(empty); 
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-profiles"] });
+      setOpen(false);
+      setForm(empty);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async (payload: ClientProfile) => (await api.put<ClientProfile>(`/client-profiles/${payload._id}`, payload)).data,
-    onSuccess: () => { 
-      qc.invalidateQueries({ queryKey: ["client-profiles"] }); 
-      setEditing(null); 
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-profiles"] });
+      setEditing(null);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => (await api.delete(`/client-profiles/${id}`)).data,
-    onSuccess: () => { 
-      qc.invalidateQueries({ queryKey: ["client-profiles"] }); 
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-profiles"] });
     },
   });
 
@@ -138,7 +138,7 @@ export default function ClientProfiles() {
   const updateShareHolding = (index: number, field: keyof ShareHolding, value: any) => {
     setForm(f => ({
       ...f,
-      shareHoldings: f.shareHoldings.map((holding, i) => 
+      shareHoldings: f.shareHoldings.map((holding, i) =>
         i === index ? { ...holding, [field]: value } : holding
       )
     }));
@@ -147,10 +147,10 @@ export default function ClientProfiles() {
   // For inline editing
   const updateEditingShareHolding = (index: number, field: keyof ShareHolding, value: any) => {
     if (!editing) return;
-    
+
     setEditing({
       ...editing,
-      shareHoldings: editing.shareHoldings.map((holding, i) => 
+      shareHoldings: editing.shareHoldings.map((holding, i) =>
         i === index ? { ...holding, [field]: value } : holding
       )
     });
@@ -158,7 +158,7 @@ export default function ClientProfiles() {
 
   const addEditingShareHolding = () => {
     if (!editing) return;
-    
+
     setEditing({
       ...editing,
       shareHoldings: [...editing.shareHoldings, { ...emptyShareHolding }]
@@ -167,7 +167,7 @@ export default function ClientProfiles() {
 
   const removeEditingShareHolding = (index: number) => {
     if (!editing) return;
-    
+
     setEditing({
       ...editing,
       shareHoldings: editing.shareHoldings.filter((_, i) => i !== index)
@@ -175,37 +175,37 @@ export default function ClientProfiles() {
   };
 
   // Calculate total investment
-  const totalInvestment = useMemo(() => 
+  const totalInvestment = useMemo(() =>
     form.shareHoldings.reduce((sum, holding) => sum + (holding.quantity * holding.faceValue), 0)
-  , [form.shareHoldings]);
+    , [form.shareHoldings]);
 
   const columns = useMemo(() => [
     {
-      key: "name", 
-      header: "Shareholder Name", 
+      key: "name",
+      header: "Shareholder Name",
       render: (r: ClientProfile) => (
         editing?._id === r._id ? (
           <div className="grid grid-cols-3 gap-2">
-            <Input 
-              value={editing.shareholderName.name1} 
-              onChange={(e) => setEditing({ 
-                ...editing, 
-                shareholderName: { ...editing.shareholderName, name1: e.target.value } 
-              })} 
+            <Input
+              value={editing.shareholderName.name1}
+              onChange={(e) => setEditing({
+                ...editing,
+                shareholderName: { ...editing.shareholderName, name1: e.target.value }
+              })}
             />
-            <Input 
-              value={editing.shareholderName.name2 || ""} 
-              onChange={(e) => setEditing({ 
-                ...editing, 
-                shareholderName: { ...editing.shareholderName, name2: e.target.value } 
-              })} 
+            <Input
+              value={editing.shareholderName.name2 || ""}
+              onChange={(e) => setEditing({
+                ...editing,
+                shareholderName: { ...editing.shareholderName, name2: e.target.value }
+              })}
             />
-            <Input 
-              value={editing.shareholderName.name3 || ""} 
-              onChange={(e) => setEditing({ 
-                ...editing, 
-                shareholderName: { ...editing.shareholderName, name3: e.target.value } 
-              })} 
+            <Input
+              value={editing.shareholderName.name3 || ""}
+              onChange={(e) => setEditing({
+                ...editing,
+                shareholderName: { ...editing.shareholderName, name3: e.target.value }
+              })}
             />
           </div>
         ) : (
@@ -217,29 +217,29 @@ export default function ClientProfiles() {
         )
       )
     },
-    { 
-      key: "panNumber", 
-      header: "PAN", 
-      render: (r: ClientProfile) => editing?._id === r._id ? 
-        <Input 
-          value={editing.panNumber} 
-          onChange={(e) => setEditing({ ...editing, panNumber: e.target.value.toUpperCase() })} 
-        /> : 
-        r.panNumber 
-    },
-    { 
-      key: "dematAccountNumber", 
-      header: "Demat", 
-      render: (r: ClientProfile) => editing?._id === r._id ? 
-        <Input 
-          value={editing.dematAccountNumber || ""} 
-          onChange={(e) => setEditing({ ...editing, dematAccountNumber: e.target.value })} 
-        /> : 
-        (r.dematAccountNumber || "—") 
+    {
+      key: "panNumber",
+      header: "PAN",
+      render: (r: ClientProfile) => editing?._id === r._id ?
+        <Input
+          value={editing.panNumber}
+          onChange={(e) => setEditing({ ...editing, panNumber: e.target.value.toUpperCase() })}
+        /> :
+        r.panNumber
     },
     {
-      key: "companies", 
-      header: "Companies", 
+      key: "dematAccountNumber",
+      header: "Demat",
+      render: (r: ClientProfile) => editing?._id === r._id ?
+        <Input
+          value={editing.dematAccountNumber || ""}
+          onChange={(e) => setEditing({ ...editing, dematAccountNumber: e.target.value })}
+        /> :
+        (r.dematAccountNumber || "—")
+    },
+    {
+      key: "companies",
+      header: "Companies",
       render: (r: ClientProfile) => (
         <div className="text-sm">
           {r.shareHoldings.slice(0, 2).map((holding, idx) => (
@@ -256,8 +256,8 @@ export default function ClientProfiles() {
       )
     },
     {
-      key: "totalShares", 
-      header: "Total Shares", 
+      key: "totalShares",
+      header: "Total Shares",
       render: (r: ClientProfile) => (
         <div>
           {r.shareHoldings.reduce((sum, holding) => sum + holding.quantity, 0).toLocaleString()}
@@ -265,11 +265,11 @@ export default function ClientProfiles() {
       )
     },
     {
-      key: "status", 
-      header: "Status", 
+      key: "status",
+      header: "Status",
       render: (r: ClientProfile) => editing?._id === r._id ? (
-        <Select 
-          value={editing.status} 
+        <Select
+          value={editing.status}
           onValueChange={(v) => setEditing({ ...editing, status: v as ClientProfile["status"] })}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -283,8 +283,8 @@ export default function ClientProfiles() {
       ) : r.status
     },
     {
-      key: "actions", 
-      header: "Actions", 
+      key: "actions",
+      header: "Actions",
       render: (r: ClientProfile) => editing?._id === r._id ? (
         <div className="space-x-2">
           <Button size="sm" onClick={() => updateMutation.mutate(editing)} disabled={updateMutation.isPending}>
@@ -303,7 +303,7 @@ export default function ClientProfiles() {
             Delete
           </Button>
         </div>
-      ), 
+      ),
       className: "w-[160px]"
     },
   ], [editing, updateMutation.isPending, deleteMutation.isPending]);
@@ -313,11 +313,11 @@ export default function ClientProfiles() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Client Profiles</h1>
         <div className="flex items-center gap-2">
-          <Input 
-            placeholder="Search name/PAN/company" 
-            value={q} 
-            onChange={(e) => { setQ(e.target.value); setPage(1); }} 
-            className="w-64" 
+          <Input
+            placeholder="Search name/PAN/company"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setPage(1); }}
+            className="w-64"
           />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -327,66 +327,66 @@ export default function ClientProfiles() {
               <DialogHeader>
                 <DialogTitle>Create Client Profile</DialogTitle>
               </DialogHeader>
-              
+
               <div className="space-y-6">
                 {/* Basic Client Information */}
                 <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
                   <h3 className="col-span-2 font-semibold">Client Information</h3>
-                  
+
                   <div className="col-span-2 grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label>Name 1 *</Label>
-                      <Input 
-                        value={form.shareholderName.name1} 
-                        onChange={(e) => setForm(f => ({ 
-                          ...f, 
-                          shareholderName: { ...f.shareholderName, name1: e.target.value } 
-                        }))} 
+                      <Input
+                        value={form.shareholderName.name1}
+                        onChange={(e) => setForm(f => ({
+                          ...f,
+                          shareholderName: { ...f.shareholderName, name1: e.target.value }
+                        }))}
                       />
                     </div>
                     <div className="space-y-1">
                       <Label>Name 2</Label>
-                      <Input 
-                        value={form.shareholderName.name2} 
-                        onChange={(e) => setForm(f => ({ 
-                          ...f, 
-                          shareholderName: { ...f.shareholderName, name2: e.target.value } 
-                        }))} 
+                      <Input
+                        value={form.shareholderName.name2}
+                        onChange={(e) => setForm(f => ({
+                          ...f,
+                          shareholderName: { ...f.shareholderName, name2: e.target.value }
+                        }))}
                       />
                     </div>
                     <div className="space-y-1">
                       <Label>Name 3</Label>
-                      <Input 
-                        value={form.shareholderName.name3} 
-                        onChange={(e) => setForm(f => ({ 
-                          ...f, 
-                          shareholderName: { ...f.shareholderName, name3: e.target.value } 
-                        }))} 
+                      <Input
+                        value={form.shareholderName.name3}
+                        onChange={(e) => setForm(f => ({
+                          ...f,
+                          shareholderName: { ...f.shareholderName, name3: e.target.value }
+                        }))}
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>PAN *</Label>
-                    <Input 
-                      value={form.panNumber} 
-                      onChange={(e) => setForm(f => ({ ...f, panNumber: e.target.value.toUpperCase() }))} 
+                    <Input
+                      value={form.panNumber}
+                      onChange={(e) => setForm(f => ({ ...f, panNumber: e.target.value.toUpperCase() }))}
                     />
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>Demat Account</Label>
-                    <Input 
-                      value={form.dematAccountNumber} 
-                      onChange={(e) => setForm(f => ({ ...f, dematAccountNumber: e.target.value }))} 
+                    <Input
+                      value={form.dematAccountNumber}
+                      onChange={(e) => setForm(f => ({ ...f, dematAccountNumber: e.target.value }))}
                     />
                   </div>
-                  
+
                   <div className="col-span-2 space-y-1">
                     <Label>Address</Label>
-                    <Input 
-                      value={form.address} 
-                      onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} 
+                    <Input
+                      value={form.address}
+                      onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -394,59 +394,59 @@ export default function ClientProfiles() {
                 {/* Bank Details */}
                 <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
                   <h3 className="col-span-2 font-semibold">Bank Details</h3>
-                  
+
                   <div className="space-y-1">
                     <Label>Bank Number</Label>
-                    <Input 
-                      value={form.bankDetails?.bankNumber} 
-                      onChange={(e) => setForm(f => ({ 
-                        ...f, 
-                        bankDetails: { ...(f.bankDetails || {}), bankNumber: e.target.value } 
-                      }))} 
+                    <Input
+                      value={form.bankDetails?.bankNumber}
+                      onChange={(e) => setForm(f => ({
+                        ...f,
+                        bankDetails: { ...(f.bankDetails || {}), bankNumber: e.target.value }
+                      }))}
                     />
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>Branch</Label>
-                    <Input 
-                      value={form.bankDetails?.branch} 
-                      onChange={(e) => setForm(f => ({ 
-                        ...f, 
-                        bankDetails: { ...(f.bankDetails || {}), branch: e.target.value } 
-                      }))} 
+                    <Input
+                      value={form.bankDetails?.branch}
+                      onChange={(e) => setForm(f => ({
+                        ...f,
+                        bankDetails: { ...(f.bankDetails || {}), branch: e.target.value }
+                      }))}
                     />
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>Bank Name</Label>
-                    <Input 
-                      value={form.bankDetails?.bankName} 
-                      onChange={(e) => setForm(f => ({ 
-                        ...f, 
-                        bankDetails: { ...(f.bankDetails || {}), bankName: e.target.value } 
-                      }))} 
+                    <Input
+                      value={form.bankDetails?.bankName}
+                      onChange={(e) => setForm(f => ({
+                        ...f,
+                        bankDetails: { ...(f.bankDetails || {}), bankName: e.target.value }
+                      }))}
                     />
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>IFSC Code</Label>
-                    <Input 
-                      value={form.bankDetails?.ifscCode} 
-                      onChange={(e) => setForm(f => ({ 
-                        ...f, 
-                        bankDetails: { ...(f.bankDetails || {}), ifscCode: e.target.value.toUpperCase() } 
-                      }))} 
+                    <Input
+                      value={form.bankDetails?.ifscCode}
+                      onChange={(e) => setForm(f => ({
+                        ...f,
+                        bankDetails: { ...(f.bankDetails || {}), ifscCode: e.target.value.toUpperCase() }
+                      }))}
                     />
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>MICR Code</Label>
-                    <Input 
-                      value={form.bankDetails?.micrCode} 
-                      onChange={(e) => setForm(f => ({ 
-                        ...f, 
-                        bankDetails: { ...(f.bankDetails || {}), micrCode: e.target.value } 
-                      }))} 
+                    <Input
+                      value={form.bankDetails?.micrCode}
+                      onChange={(e) => setForm(f => ({
+                        ...f,
+                        bankDetails: { ...(f.bankDetails || {}), micrCode: e.target.value }
+                      }))}
                     />
                   </div>
                 </div>
@@ -592,20 +592,20 @@ export default function ClientProfiles() {
                 {/* Additional Information */}
                 <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
                   <h3 className="col-span-2 font-semibold">Additional Information</h3>
-                  
+
                   <div className="space-y-1">
                     <Label>Current Date</Label>
-                    <Input 
-                      type="date" 
-                      value={form.currentDate as string} 
-                      onChange={(e) => setForm(f => ({ ...f, currentDate: e.target.value }))} 
+                    <Input
+                      type="date"
+                      value={form.currentDate as string}
+                      onChange={(e) => setForm(f => ({ ...f, currentDate: e.target.value }))}
                     />
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>Status</Label>
-                    <Select 
-                      value={form.status} 
+                    <Select
+                      value={form.status}
                       onValueChange={(v) => setForm(f => ({ ...f, status: v as ClientProfile["status"] }))}
                     >
                       <SelectTrigger>
@@ -619,36 +619,36 @@ export default function ClientProfiles() {
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div className="col-span-2 space-y-1">
                     <Label>Remarks</Label>
-                    <Input 
-                      value={form.remarks} 
-                      onChange={(e) => setForm(f => ({ ...f, remarks: e.target.value }))} 
+                    <Input
+                      value={form.remarks}
+                      onChange={(e) => setForm(f => ({ ...f, remarks: e.target.value }))}
                     />
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>Dividend Amount</Label>
-                    <Input 
-                      type="number" 
-                      value={form.dividend?.amount ?? 0} 
-                      onChange={(e) => setForm(f => ({ 
-                        ...f, 
-                        dividend: { ...(f.dividend || {}), amount: Number(e.target.value) } 
-                      }))} 
+                    <Input
+                      type="number"
+                      value={form.dividend?.amount ?? 0}
+                      onChange={(e) => setForm(f => ({
+                        ...f,
+                        dividend: { ...(f.dividend || {}), amount: Number(e.target.value) }
+                      }))}
                     />
                   </div>
-                  
+
                   <div className="space-y-1">
                     <Label>Dividend Date</Label>
-                    <Input 
-                      type="date" 
-                      value={form.dividend?.date as string} 
-                      onChange={(e) => setForm(f => ({ 
-                        ...f, 
-                        dividend: { ...(f.dividend || {}), date: e.target.value } 
-                      }))} 
+                    <Input
+                      type="date"
+                      value={form.dividend?.date as string}
+                      onChange={(e) => setForm(f => ({
+                        ...f,
+                        dividend: { ...(f.dividend || {}), date: e.target.value }
+                      }))}
                     />
                   </div>
                 </div>
@@ -657,8 +657,8 @@ export default function ClientProfiles() {
                   <Button variant="outline" onClick={() => setOpen(false)}>
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={() => createMutation.mutate(form)} 
+                  <Button
+                    onClick={() => createMutation.mutate(form)}
                     disabled={createMutation.isPending || !form.shareholderName.name1 || !form.panNumber}
                   >
                     {createMutation.isPending ? "Creating..." : "Create Client Profile"}
@@ -675,10 +675,10 @@ export default function ClientProfiles() {
           <CardTitle>All Client Profiles</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <Table 
-            columns={columns as any} 
-            data={(data?.data ?? [])} 
-            empty={isFetching ? "Loading..." : "No profiles found"} 
+          <Table
+            columns={columns as any}
+            data={(data?.data ?? [])}
+            empty={isFetching ? "Loading..." : "No profiles found"}
           />
           <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
             <div>
@@ -686,18 +686,18 @@ export default function ClientProfiles() {
               {data && ` (${data.total} total clients)`}
             </div>
             <div className="space-x-2">
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                disabled={page <= 1 || isFetching} 
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={page <= 1 || isFetching}
                 onClick={() => setPage(p => Math.max(1, p - 1))}
               >
                 Prev
               </Button>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                disabled={!!data && page >= Math.ceil((data.total ?? 0) / (data.limit || 10)) || isFetching} 
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!!data && page >= Math.ceil((data.total ?? 0) / (data.limit || 10)) || isFetching}
                 onClick={() => setPage(p => p + 1)}
               >
                 Next
@@ -707,15 +707,137 @@ export default function ClientProfiles() {
         </CardContent>
       </Card>
 
-      {/* Edit Modal for Share Holdings */}
+      {/* Edit Modal for Client Profile */}
       {editing && (
         <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
             <DialogHeader>
               <DialogTitle>Edit Client Profile</DialogTitle>
             </DialogHeader>
-            
-            <div className="space-y-4">
+
+            <div className="space-y-6">
+              {/* Basic Client Information */}
+              <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+                <h3 className="col-span-2 font-semibold">Client Information</h3>
+
+                <div className="col-span-2 grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label>Name 1 *</Label>
+                    <Input
+                      value={editing.shareholderName.name1}
+                      onChange={(e) => setEditing({
+                        ...editing,
+                        shareholderName: { ...editing.shareholderName, name1: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Name 2</Label>
+                    <Input
+                      value={editing.shareholderName.name2 || ""}
+                      onChange={(e) => setEditing({
+                        ...editing,
+                        shareholderName: { ...editing.shareholderName, name2: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Name 3</Label>
+                    <Input
+                      value={editing.shareholderName.name3 || ""}
+                      onChange={(e) => setEditing({
+                        ...editing,
+                        shareholderName: { ...editing.shareholderName, name3: e.target.value }
+                      })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>PAN *</Label>
+                  <Input
+                    value={editing.panNumber}
+                    onChange={(e) => setEditing({ ...editing, panNumber: e.target.value.toUpperCase() })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Demat Account</Label>
+                  <Input
+                    value={editing.dematAccountNumber || ""}
+                    onChange={(e) => setEditing({ ...editing, dematAccountNumber: e.target.value })}
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-1">
+                  <Label>Address</Label>
+                  <Input
+                    value={editing.address || ""}
+                    onChange={(e) => setEditing({ ...editing, address: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Bank Details */}
+              <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+                <h3 className="col-span-2 font-semibold">Bank Details</h3>
+
+                <div className="space-y-1">
+                  <Label>Bank Number</Label>
+                  <Input
+                    value={editing.bankDetails?.bankNumber || ""}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      bankDetails: { ...(editing.bankDetails || {}), bankNumber: e.target.value }
+                    })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Branch</Label>
+                  <Input
+                    value={editing.bankDetails?.branch || ""}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      bankDetails: { ...(editing.bankDetails || {}), branch: e.target.value }
+                    })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Bank Name</Label>
+                  <Input
+                    value={editing.bankDetails?.bankName || ""}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      bankDetails: { ...(editing.bankDetails || {}), bankName: e.target.value }
+                    })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>IFSC Code</Label>
+                  <Input
+                    value={editing.bankDetails?.ifscCode || ""}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      bankDetails: { ...(editing.bankDetails || {}), ifscCode: e.target.value.toUpperCase() }
+                    })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>MICR Code</Label>
+                  <Input
+                    value={editing.bankDetails?.micrCode || ""}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      bankDetails: { ...(editing.bankDetails || {}), micrCode: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+
               {/* Share Holdings Edit Section */}
               <div className="p-4 border rounded-lg">
                 <div className="flex justify-between items-center mb-4">
@@ -760,6 +882,22 @@ export default function ClientProfiles() {
                     </div>
 
                     <div className="space-y-1">
+                      <Label>Folio Number</Label>
+                      <Input
+                        value={holding.folioNumber}
+                        onChange={(e) => updateEditingShareHolding(index, 'folioNumber', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>Certificate Number</Label>
+                      <Input
+                        value={holding.certificateNumber}
+                        onChange={(e) => updateEditingShareHolding(index, 'certificateNumber', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
                       <Label>Quantity</Label>
                       <Input
                         type="number"
@@ -777,17 +915,112 @@ export default function ClientProfiles() {
                         onChange={(e) => updateEditingShareHolding(index, 'faceValue', parseFloat(e.target.value) || 0)}
                       />
                     </div>
+
+                    <div className="space-y-1">
+                      <Label>Distinctive From</Label>
+                      <Input
+                        value={holding.distinctiveNumber.from || ""}
+                        onChange={(e) => updateEditingShareHolding(index, 'distinctiveNumber', {
+                          ...holding.distinctiveNumber,
+                          from: e.target.value
+                        })}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>Distinctive To</Label>
+                      <Input
+                        value={holding.distinctiveNumber.to || ""}
+                        onChange={(e) => updateEditingShareHolding(index, 'distinctiveNumber', {
+                          ...holding.distinctiveNumber,
+                          to: e.target.value
+                        })}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>Purchase Date</Label>
+                      <Input
+                        type="date"
+                        value={holding.purchaseDate || ""}
+                        onChange={(e) => updateEditingShareHolding(index, 'purchaseDate', e.target.value)}
+                      />
+                    </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Additional Information */}
+              <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+                <h3 className="col-span-2 font-semibold">Additional Information</h3>
+
+                <div className="space-y-1">
+                  <Label>Current Date</Label>
+                  <Input
+                    type="date"
+                    value={editing.currentDate as string}
+                    onChange={(e) => setEditing({ ...editing, currentDate: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Status</Label>
+                  <Select
+                    value={editing.status}
+                    onValueChange={(v) => setEditing({ ...editing, status: v as ClientProfile["status"] })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Suspended">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="col-span-2 space-y-1">
+                  <Label>Remarks</Label>
+                  <Input
+                    value={editing.remarks || ""}
+                    onChange={(e) => setEditing({ ...editing, remarks: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Dividend Amount</Label>
+                  <Input
+                    type="number"
+                    value={editing.dividend?.amount ?? 0}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      dividend: { ...(editing.dividend || {}), amount: Number(e.target.value) }
+                    })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Dividend Date</Label>
+                  <Input
+                    type="date"
+                    value={editing.dividend?.date as string}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      dividend: { ...(editing.dividend || {}), date: e.target.value }
+                    })}
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button variant="outline" onClick={() => setEditing(null)}>
                   Cancel
                 </Button>
-                <Button 
-                  onClick={() => updateMutation.mutate(editing)} 
-                  disabled={updateMutation.isPending}
+                <Button
+                  onClick={() => updateMutation.mutate(editing)}
+                  disabled={updateMutation.isPending || !editing.shareholderName.name1 || !editing.panNumber}
                 >
                   {updateMutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
