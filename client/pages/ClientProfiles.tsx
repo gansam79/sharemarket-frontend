@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom"; // Add this import
 import { api, Paginated } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Eye } from "lucide-react"; // Add Eye icon
 import Table from "@/components/Table";
 
 interface BankDetails { bankNumber?: string; branch?: string; bankName?: string; ifscCode?: string; micrCode?: string }
@@ -45,6 +46,7 @@ type Payload = Omit<ClientProfile, "_id">;
 
 export default function ClientProfiles() {
   const qc = useQueryClient();
+  const navigate = useNavigate(); // Add navigate hook
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -119,6 +121,11 @@ export default function ClientProfiles() {
       qc.invalidateQueries({ queryKey: ["client-profiles"] });
     },
   });
+
+  // Function to handle view details navigation
+  const handleViewDetails = (client: ClientProfile) => {
+    navigate(`/client-profiles/${client._id}`, { state: { client } });
+  };
 
   // Share holding management functions
   const addShareHolding = () => {
@@ -296,6 +303,15 @@ export default function ClientProfiles() {
         </div>
       ) : (
         <div className="space-x-2">
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => handleViewDetails(r)}
+            className="flex items-center gap-1"
+          >
+            <Eye className="w-3 h-3" />
+            View
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => setEditing(r)}>
             Edit
           </Button>
@@ -304,9 +320,9 @@ export default function ClientProfiles() {
           </Button>
         </div>
       ),
-      className: "w-[160px]"
+      className: "w-[200px]" // Increased width to accommodate the new button
     },
-  ], [editing, updateMutation.isPending, deleteMutation.isPending]);
+  ], [editing, updateMutation.isPending, deleteMutation.isPending, handleViewDetails]);
 
   return (
     <div className="space-y-6">
@@ -328,6 +344,7 @@ export default function ClientProfiles() {
                 <DialogTitle>Create Client Profile</DialogTitle>
               </DialogHeader>
 
+              {/* ... rest of the dialog content remains the same ... */}
               <div className="space-y-6">
                 {/* Basic Client Information */}
                 <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">

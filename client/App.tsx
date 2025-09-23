@@ -11,11 +11,12 @@ import NotFound from "./pages/NotFound";
 import AppLayout from "@/components/layout/AppLayout";
 import { StoreProvider } from "@/state/store";
 import Transfers from "@/pages/Transfers";
-import Shareholders from "@/pages/Shareholders"; 
+import Shareholders from "@/pages/Shareholders";
 import Stockholders from "@/pages/Stockholders";
 import DmatAccounts from "@/pages/DmatAccounts";
 import ClientProfiles from "@/pages/ClientProfiles";
 import Placeholder from "@/pages/_Placeholder";
+import ClientProfileDetails from "./pages/ClientProfileDetails";
 
 const queryClient = new QueryClient();
 
@@ -32,10 +33,12 @@ const App = () => (
               <Route path="/transfers" element={<Transfers />} />
               <Route path="/shareholders" element={<Shareholders />} />
               <Route path="/stockholders" element={<Stockholders />} />
+              <Route path="/client-profiles/:id" element={<ClientProfileDetails />} />
               <Route path="/dmat" element={<DmatAccounts />} />
               <Route path="/profiles" element={<ClientProfiles />} />
               <Route path="/reports" element={<Placeholder title="Reports" />} />
               <Route path="/notifications" element={<Placeholder title="Notifications Log" />} />
+
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
