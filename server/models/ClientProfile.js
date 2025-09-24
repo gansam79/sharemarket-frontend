@@ -11,17 +11,17 @@ const DistinctiveSchema = new Schema(
   { _id: false }
 );
 
-// Company sub-schema (updated to match frontend ShareHolding interface)
+// Company sub-schema
 const CompanySchema = new Schema(
   {
     companyName: { type: String, required: true, trim: true },
     isinNumber: { type: String, trim: true },
     folioNumber: { type: String, trim: true },
     certificateNumber: { type: String, trim: true },
-    distinctiveNumber: DistinctiveSchema, // ← Changed from 'distinctive' to 'distinctiveNumber'
-    quantity: { type: Number, default: 0 }, // ← Add this missing field
-    faceValue: { type: Number, default: 0 }, // ← Add this missing field
-    purchaseDate: { type: Date } // ← Add this missing field
+    distinctiveNumber: DistinctiveSchema,
+    quantity: { type: Number, default: 0 },
+    faceValue: { type: Number, default: 0 },
+    purchaseDate: { type: Date },
   },
   { _id: true }
 );
@@ -60,20 +60,11 @@ const DividendSchema = new Schema(
 const ClientProfileSchema = new Schema(
   {
     shareholderName: ShareholderNameSchema,
-    panNumber: {
-      type: String,
-      required: true,
-      uppercase: true,
-      trim: true,
-      index: true,
-    },
+    panNumber: { type: String, required: true, uppercase: true, trim: true, index: true },
     address: { type: String, trim: true },
     bankDetails: BankDetailsSchema,
     dematAccountNumber: { type: String, trim: true },
-
-    // Array of multiple companies (make sure this matches frontend)
-    companies: [CompanySchema], // Frontend uses 'shareHoldings' but backend uses 'companies'
-
+    companies: [CompanySchema], // frontend maps shareHoldings -> companies
     currentDate: { type: Date, default: Date.now },
     status: {
       type: String,

@@ -1,55 +1,45 @@
 import express from "express";
-import Shareholder from "../models/Shareholder.js";
+import { Shareholder } from "../models/Shareholder.js"; // Make sure file name matches exactly
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+// GET all shareholders with pagination
+router.get("/", (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-  const skip = (page - 1) * limit;
-  const filter = {};
-  if (req.query.type) filter.type = req.query.type;
-  const [items, total] = await Promise.all([
-    Shareholder.find(filter)
-      .populate("linkedDmatAccount")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-    Shareholder.countDocuments(filter),
-  ]);
-  res.json({ data: items, page, limit, total });
+  const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+  const all = Shareholder.getAll();
+  const start = (page - 1) * limit;
+  const paginated = all.slice(start, start + limit);
+  res.json({ data: paginated, page, limit, total: all.length });
 });
 
-router.get("/:id", async (req, res) => {
-  const item = await Shareholder.findById(req.params.id).populate("linkedDmatAccount");
+// GET shareholder by ID
+router.get("/:id", (req, res) => {
+  const item = Shareholder.getById(req.params.id);
   if (!item) return res.status(404).json({ error: "Not found" });
   res.json(item);
 });
 
-router.post("/", async (req, res) => {
+// POST create new shareholder
+router.post("/", (req, res) => {
   try {
-    const created = await Shareholder.create(req.body);
+    const created = Shareholder.create(req.body);
     res.status(201).json(created);
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
 });
 
-router.put("/:id", async (req, res) => {
-  try {
-    const updated = await Shareholder.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!updated) return res.status(404).json({ error: "Not found" });
-    res.json(updated);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+// PUT update shareholder by ID
+router.put("/:id", (req, res) => {
+  const updated = Shareholder.update(req.params.id, req.body);
+  if (!updated) return res.status(404).json({ error: "Not found" });
+  res.json(updated);
 });
 
-router.delete("/:id", async (req, res) => {
-  const deleted = await Shareholder.findByIdAndDelete(req.params.id);
+// DELETE shareholder by ID
+router.delete("/:id", (req, res) => {
+  const deleted = Shareholder.delete(req.params.id);
   if (!deleted) return res.status(404).json({ error: "Not found" });
   res.json({ success: true });
 });

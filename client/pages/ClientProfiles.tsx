@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom"; // Add this import
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify"; // Add this import
+
 import { api, Paginated } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Trash2, Plus, Eye } from "lucide-react"; // Add Eye icon
+import { Trash2, Plus, Eye } from "lucide-react";
 import Table from "@/components/Table";
 
 interface BankDetails { bankNumber?: string; branch?: string; bankName?: string; ifscCode?: string; micrCode?: string }
@@ -16,7 +18,6 @@ interface Distinctive { from?: string; to?: string }
 interface Dividend { amount?: number; date?: string }
 interface ShareholderName { name1: string; name2?: string; name3?: string }
 
-// New interface for share holdings
 interface ShareHolding {
   companyName: string;
   isinNumber: string;
@@ -35,7 +36,7 @@ export interface ClientProfile {
   address?: string;
   bankDetails?: BankDetails;
   dematAccountNumber?: string;
-  shareHoldings: ShareHolding[]; // Changed from single company to array
+  shareHoldings: ShareHolding[];
   currentDate?: string;
   status: "Active" | "Closed" | "Pending" | "Suspended";
   remarks?: string;
@@ -46,7 +47,7 @@ type Payload = Omit<ClientProfile, "_id">;
 
 export default function ClientProfiles() {
   const qc = useQueryClient();
-  const navigate = useNavigate(); // Add navigate hook
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -85,12 +86,11 @@ export default function ClientProfiles() {
         params: { page, limit: 10, q }
       });
 
-      // Transform backend 'companies' to frontend 'shareHoldings'
       const mappedData = {
         ...response.data,
         data: response.data.data.map((item: any) => ({
           ...item,
-          shareHoldings: item.companies || [] // Map companies to shareHoldings
+          shareHoldings: item.companies || []
         }))
       };
 
@@ -98,56 +98,58 @@ export default function ClientProfiles() {
     }
   });
 
-  // In your mutations, transform shareHoldings to companies for the backend
   const createMutation = useMutation({
     mutationFn: async (payload: Payload) => {
       const backendPayload = {
         ...payload,
-        companies: payload.shareHoldings // Convert shareHoldings to companies for backend
+        companies: payload.shareHoldings
       };
       return (await api.post<ClientProfile>("/client-profiles", backendPayload)).data;
     },
-    // ... rest of mutation
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-profiles"] });
+      setOpen(false);
+      setForm(empty);
+      toast.success("Client profile created successfully!");
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to create client profile: ${error.response?.data?.message || error.message}`);
+    }
   });
 
   const updateMutation = useMutation({
     mutationFn: async (payload: ClientProfile) => {
       const backendPayload = {
         ...payload,
-        companies: payload.shareHoldings // Convert shareHoldings to companies for backend
+        companies: payload.shareHoldings
       };
       return (await api.put<ClientProfile>(`/client-profiles/${payload._id}`, backendPayload)).data;
     },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-profiles"] });
+      setEditing(null);
+      toast.success("Client profile updated successfully!");
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to update client profile: ${error.response?.data?.message || error.message}`);
+    }
   });
-
-  // const updateMutation = useMutation({
-  //   mutationFn: async (payload: ClientProfile) => {
-  //     // Transform shareHoldings to companies for backend
-  //     const backendPayload = {
-  //       ...payload,
-  //       companies: payload.shareHoldings // Convert shareHoldings to companies
-  //     };
-  //     return (await api.put<ClientProfile>(`/client-profiles/${payload._id}`, backendPayload)).data;
-  //   },
-  //   onSuccess: () => {
-  //     qc.invalidateQueries({ queryKey: ["client-profiles"] });
-  //     setEditing(null);
-  //   },
-  // });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => (await api.delete(`/client-profiles/${id}`)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["client-profiles"] });
+      toast.success("Client profile deleted successfully!");
     },
+    onError: (error: any) => {
+      toast.error(`Failed to delete client profile: ${error.response?.data?.message || error.message}`);
+    }
   });
 
-  // Function to handle view details navigation
   const handleViewDetails = (client: ClientProfile) => {
     navigate(`/client-profiles/${client._id}`, { state: { client } });
   };
 
-  // Share holding management functions
   const addShareHolding = () => {
     setForm(f => ({
       ...f,
@@ -171,7 +173,6 @@ export default function ClientProfiles() {
     }));
   };
 
-  // For inline editing
   const updateEditingShareHolding = (index: number, field: keyof ShareHolding, value: any) => {
     if (!editing) return;
 
@@ -201,7 +202,6 @@ export default function ClientProfiles() {
     });
   };
 
-  // Calculate total investment
   const totalInvestment = useMemo(() =>
     form.shareHoldings.reduce((sum, holding) => sum + (holding.quantity * holding.faceValue), 0)
     , [form.shareHoldings]);
@@ -340,7 +340,7 @@ export default function ClientProfiles() {
           </Button>
         </div>
       ),
-      className: "w-[200px]" // Increased width to accommodate the new button
+      className: "w-[200px]"
     },
   ], [editing, updateMutation.isPending, deleteMutation.isPending, handleViewDetails]);
 
@@ -364,7 +364,6 @@ export default function ClientProfiles() {
                 <DialogTitle>Create Client Profile</DialogTitle>
               </DialogHeader>
 
-              {/* ... rest of the dialog content remains the same ... */}
               <div className="space-y-6">
                 {/* Basic Client Information */}
                 <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
