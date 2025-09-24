@@ -10,6 +10,9 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Download, Printer, Plus, Eye, CheckCircle, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "react-toastify";
+import { api } from "@/lib/api";
 
 // Empty share holding template
 const emptyShareHolding: ShareHolding = {
@@ -23,15 +26,68 @@ const emptyShareHolding: ShareHolding = {
   purchaseDate: new Date().toISOString().slice(0, 10)
 };
 
+// Helper function to safely get share holdings
+const getShareHoldings = (client: ClientProfile | null): ShareHolding[] => {
+  if (!client) return [];
+  
+  // Handle both field names - backend uses 'companies', frontend expects 'shareHoldings'
+  if (client.shareHoldings && Array.isArray(client.shareHoldings)) {
+    return client.shareHoldings;
+  }
+  
+  if ((client as any).companies && Array.isArray((client as any).companies)) {
+    return (client as any).companies;
+  }
+  
+  return [];
+};
+
 export default function ClientProfileDetails() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const client = location.state?.client as ClientProfile;
   
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompany, setNewCompany] = useState<ShareHolding>(emptyShareHolding);
   const [reviewMode, setReviewMode] = useState(false);
+
+  // Safely get share holdings
+  const shareHoldings = getShareHoldings(client);
+
+  // Update mutation for adding company
+  const updateMutation = useMutation({
+    mutationFn: async (updatedClient: ClientProfile) => {
+      // Prepare the payload for the backend
+      const backendPayload = {
+        ...updatedClient,
+        companies: shareHoldings.concat(newCompany) // Use the correct field name for backend
+      };
+      
+      return (await api.put<ClientProfile>(`/client-profiles/${updatedClient._id}`, backendPayload)).data;
+    },
+    onSuccess: (updatedClient) => {
+      queryClient.invalidateQueries({ queryKey: ["client-profiles"] });
+      toast.success("Company added successfully!");
+      setNewCompany(emptyShareHolding);
+      setShowAddCompany(false);
+      
+      // Navigate to refresh the state with updated client
+      navigate(`/client-profiles/${client._id}`, { 
+        state: { 
+          client: {
+            ...updatedClient,
+            shareHoldings: getShareHoldings(updatedClient) // Ensure shareHoldings is set
+          }
+        } 
+      });
+    },
+    onError: (error: any) => {
+      console.error("Update error:", error);
+      toast.error(`Failed to add company: ${error.response?.data?.error || error.message}`);
+    }
+  });
 
   if (!client) {
     return (
@@ -46,7 +102,7 @@ export default function ClientProfileDetails() {
     );
   }
 
-  // Add new company function
+  // Add new company function with API call
   const handleAddCompany = () => {
     if (!newCompany.companyName || !newCompany.isinNumber) {
       alert("Company Name and ISIN Number are required");
@@ -55,23 +111,18 @@ export default function ClientProfileDetails() {
 
     const updatedClient = {
       ...client,
-      shareHoldings: [...client.shareHoldings, newCompany]
+      shareHoldings: [...shareHoldings, newCompany]
     };
 
-    // In a real app, you would make an API call here to update the client
-    console.log("Adding new company:", newCompany);
-    
-    // For now, we'll just show an alert and reset the form
-    alert("Company added successfully! (In a real app, this would save to the database)");
-    setNewCompany(emptyShareHolding);
-    setShowAddCompany(false);
+    // Make API call to update the client
+    updateMutation.mutate(updatedClient);
   };
 
-  // Safe calculations with default values
-  const totalShares = client.shareHoldings.reduce((sum, holding) => 
+  // Safe calculations with default values - use the safe shareHoldings array
+  const totalShares = shareHoldings.reduce((sum, holding) => 
     sum + (holding.quantity || 0), 0);
   
-  const totalInvestment = client.shareHoldings.reduce((sum, holding) => 
+  const totalInvestment = shareHoldings.reduce((sum, holding) => 
     sum + ((holding.quantity || 0) * (holding.faceValue || 0)), 0);
 
   const getStatusColor = (status: string) => {
@@ -113,7 +164,6 @@ export default function ClientProfileDetails() {
 
   // Review status functions
   const getReviewStatus = (holding: ShareHolding) => {
-    // Simple validation logic - you can customize this
     const hasRequiredFields = holding.companyName && holding.isinNumber && holding.quantity > 0;
     const hasCompleteInfo = holding.folioNumber && holding.certificateNumber;
     
@@ -170,6 +220,16 @@ export default function ClientProfileDetails() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {updateMutation.isPending && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <span className="text-blue-800">Adding company...</span>
+          </div>
+        </div>
+      )}
+
       {/* Review Mode Banner */}
       {reviewMode && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -180,7 +240,7 @@ export default function ClientProfileDetails() {
               <span className="text-blue-600">• Viewing all holdings with review status</span>
             </div>
             <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-              {client.shareHoldings.length} Companies
+              {shareHoldings.length} Companies
             </Badge>
           </div>
         </div>
@@ -200,9 +260,9 @@ export default function ClientProfileDetails() {
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Shareholder Name</label>
             <div className="text-lg font-semibold">
-              {getSafeValue(client.shareholderName.name1)}
-              {client.shareholderName.name2 && `, ${client.shareholderName.name2}`}
-              {client.shareholderName.name3 && `, ${client.shareholderName.name3}`}
+              {getSafeValue(client.shareholderName?.name1)}
+              {client.shareholderName?.name2 && `, ${client.shareholderName.name2}`}
+              {client.shareholderName?.name3 && `, ${client.shareholderName.name3}`}
             </div>
           </div>
           
@@ -268,7 +328,11 @@ export default function ClientProfileDetails() {
             <CardTitle>Share Holdings Summary</CardTitle>
             <Dialog open={showAddCompany} onOpenChange={setShowAddCompany}>
               <DialogTrigger asChild>
-                <Button size="sm" className="flex items-center gap-1">
+                <Button 
+                  size="sm" 
+                  className="flex items-center gap-1"
+                  disabled={updateMutation.isPending}
+                >
                   <Plus className="w-4 h-4" />
                   Add Company
                 </Button>
@@ -371,11 +435,18 @@ export default function ClientProfileDetails() {
                     </div>
                   </div>
                   <div className="flex justify-end gap-3 pt-4">
-                    <Button variant="outline" onClick={() => setShowAddCompany(false)}>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowAddCompany(false)}
+                      disabled={updateMutation.isPending}
+                    >
                       Cancel
                     </Button>
-                    <Button onClick={handleAddCompany}>
-                      Add Company
+                    <Button 
+                      onClick={handleAddCompany}
+                      disabled={updateMutation.isPending || !newCompany.companyName || !newCompany.isinNumber}
+                    >
+                      {updateMutation.isPending ? "Adding..." : "Add Company"}
                     </Button>
                   </div>
                 </div>
@@ -383,7 +454,7 @@ export default function ClientProfileDetails() {
             </Dialog>
           </div>
           <div className="flex space-x-4 text-sm text-muted-foreground">
-            <span>Total Companies: {client.shareHoldings.length}</span>
+            <span>Total Companies: {shareHoldings.length}</span>
             <span>Total Shares: {formatNumber(totalShares)}</span>
             <span className="font-semibold">
               Total Investment: {formatCurrency(totalInvestment)}
@@ -410,7 +481,7 @@ export default function ClientProfileDetails() {
                 </tr>
               </thead>
               <tbody>
-                {client.shareHoldings.map((holding: ShareHolding, index: number) => {
+                {shareHoldings.map((holding: ShareHolding, index: number) => {
                   const quantity = holding.quantity || 0;
                   const faceValue = holding.faceValue || 0;
                   const totalValue = quantity * faceValue;
@@ -465,7 +536,7 @@ export default function ClientProfileDetails() {
           </div>
 
           {/* Empty State */}
-          {client.shareHoldings.length === 0 && (
+          {shareHoldings.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               No share holdings found for this client. Click "Add Company" to get started.
             </div>
