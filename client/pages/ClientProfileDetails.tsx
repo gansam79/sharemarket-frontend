@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Download, Printer, Plus, Eye, CheckCircle, XCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Download, Printer, Plus, Eye, CheckCircle, XCircle, Edit, Trash2, Save, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -52,24 +53,28 @@ export default function ClientProfileDetails() {
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompany, setNewCompany] = useState<ShareHolding>(emptyShareHolding);
   const [reviewMode, setReviewMode] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editedHolding, setEditedHolding] = useState<ShareHolding | null>(null);
 
   // Safely get share holdings
   const shareHoldings = getShareHoldings(client);
 
-  // Update mutation for adding company
+  // Update mutation for client profile
   const updateMutation = useMutation({
     mutationFn: async (updatedClient: ClientProfile) => {
       // Prepare the payload for the backend
       const backendPayload = {
         ...updatedClient,
-        companies: shareHoldings.concat(newCompany) // Use the correct field name for backend
+        companies: getShareHoldings(updatedClient) // Use the correct field name for backend
       };
       
       return (await api.put<ClientProfile>(`/client-profiles/${updatedClient._id}`, backendPayload)).data;
     },
     onSuccess: (updatedClient) => {
       queryClient.invalidateQueries({ queryKey: ["client-profiles"] });
-      toast.success("Company added successfully!");
+      toast.success("Client profile updated successfully!");
+      setEditingIndex(null);
+      setEditedHolding(null);
       setNewCompany(emptyShareHolding);
       setShowAddCompany(false);
       
@@ -80,12 +85,13 @@ export default function ClientProfileDetails() {
             ...updatedClient,
             shareHoldings: getShareHoldings(updatedClient) // Ensure shareHoldings is set
           }
-        } 
+        },
+        replace: true
       });
     },
     onError: (error: any) => {
       console.error("Update error:", error);
-      toast.error(`Failed to add company: ${error.response?.data?.error || error.message}`);
+      toast.error(`Failed to update: ${error.response?.data?.error || error.message}`);
     }
   });
 
@@ -105,7 +111,7 @@ export default function ClientProfileDetails() {
   // Add new company function with API call
   const handleAddCompany = () => {
     if (!newCompany.companyName || !newCompany.isinNumber) {
-      alert("Company Name and ISIN Number are required");
+      toast.error("Company Name and ISIN Number are required");
       return;
     }
 
@@ -115,6 +121,52 @@ export default function ClientProfileDetails() {
     };
 
     // Make API call to update the client
+    updateMutation.mutate(updatedClient);
+  };
+
+  // Edit company function
+  const handleEditCompany = (index: number) => {
+    setEditingIndex(index);
+    setEditedHolding({ ...shareHoldings[index] });
+  };
+
+  // Save edited company function
+  const handleSaveEdit = () => {
+    if (editingIndex === null || !editedHolding) return;
+
+    if (!editedHolding.companyName || !editedHolding.isinNumber) {
+      toast.error("Company Name and ISIN Number are required");
+      return;
+    }
+
+    const updatedHoldings = [...shareHoldings];
+    updatedHoldings[editingIndex] = editedHolding;
+
+    const updatedClient = {
+      ...client,
+      shareHoldings: updatedHoldings
+    };
+
+    updateMutation.mutate(updatedClient);
+  };
+
+  // Cancel edit function
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditedHolding(null);
+  };
+
+  // Delete company function
+  const handleDeleteCompany = (index: number) => {
+    if (!confirm("Are you sure you want to delete this company?")) return;
+
+    const updatedHoldings = shareHoldings.filter((_, i) => i !== index);
+    
+    const updatedClient = {
+      ...client,
+      shareHoldings: updatedHoldings
+    };
+
     updateMutation.mutate(updatedClient);
   };
 
@@ -185,6 +237,22 @@ export default function ClientProfileDetails() {
     }
   };
 
+  // Render editable input field
+  const renderEditableField = (
+    value: any,
+    onChange: (value: any) => void,
+    type: "text" | "number" | "date" = "text",
+    placeholder: string = ""
+  ) => (
+    <Input
+      type={type}
+      value={value || ""}
+      onChange={(e) => onChange(type === "number" ? Number(e.target.value) : e.target.value)}
+      placeholder={placeholder}
+      className="w-full"
+    />
+  );
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -225,7 +293,7 @@ export default function ClientProfileDetails() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-center gap-2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-            <span className="text-blue-800">Adding company...</span>
+            <span className="text-blue-800">Updating client profile...</span>
           </div>
         </div>
       )}
@@ -478,6 +546,7 @@ export default function ClientProfileDetails() {
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Total Value</th>
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Purchase Date</th>
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Distinctive Numbers</th>
+                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -486,46 +555,191 @@ export default function ClientProfileDetails() {
                   const faceValue = holding.faceValue || 0;
                   const totalValue = quantity * faceValue;
                   const reviewStatus = getReviewStatus(holding);
+                  const isEditing = editingIndex === index;
                   
                   return (
                     <tr key={index} className="hover:bg-muted/30">
                       <td className="border border-gray-300 px-4 py-3 font-medium">{index + 1}</td>
-                      <td className="border border-gray-300 px-4 py-3 font-semibold">
-                        {getSafeValue(holding.companyName)}
+                      
+                      {/* Company Name */}
+                      <td className="border border-gray-300 px-4 py-3">
+                        {isEditing ? (
+                          renderEditableField(
+                            editedHolding?.companyName,
+                            (value) => setEditedHolding(prev => prev ? {...prev, companyName: value} : null),
+                            "text",
+                            "Company Name"
+                          )
+                        ) : (
+                          <span className="font-semibold">{getSafeValue(holding.companyName)}</span>
+                        )}
                       </td>
-                      <td className="border border-gray-300 px-4 py-3 font-mono">
-                        {getSafeValue(holding.isinNumber)}
+                      
+                      {/* ISIN Number */}
+                      <td className="border border-gray-300 px-4 py-3">
+                        {isEditing ? (
+                          renderEditableField(
+                            editedHolding?.isinNumber,
+                            (value) => setEditedHolding(prev => prev ? {...prev, isinNumber: value} : null),
+                            "text",
+                            "ISIN Number"
+                          )
+                        ) : (
+                          <span className="font-mono">{getSafeValue(holding.isinNumber)}</span>
+                        )}
                       </td>
+                      
+                      {/* Review Status */}
                       {reviewMode && (
                         <td className="border border-gray-300 px-4 py-3">
                           {getReviewBadge(reviewStatus)}
                         </td>
                       )}
+                      
+                      {/* Folio Number */}
                       <td className="border border-gray-300 px-4 py-3">
-                        {getSafeValue(holding.folioNumber)}
+                        {isEditing ? (
+                          renderEditableField(
+                            editedHolding?.folioNumber,
+                            (value) => setEditedHolding(prev => prev ? {...prev, folioNumber: value} : null)
+                          )
+                        ) : (
+                          getSafeValue(holding.folioNumber)
+                        )}
                       </td>
+                      
+                      {/* Certificate Number */}
                       <td className="border border-gray-300 px-4 py-3">
-                        {getSafeValue(holding.certificateNumber)}
+                        {isEditing ? (
+                          renderEditableField(
+                            editedHolding?.certificateNumber,
+                            (value) => setEditedHolding(prev => prev ? {...prev, certificateNumber: value} : null)
+                          )
+                        ) : (
+                          getSafeValue(holding.certificateNumber)
+                        )}
                       </td>
+                      
+                      {/* Quantity */}
                       <td className="border border-gray-300 px-4 py-3 text-right">
-                        {formatNumber(quantity)}
+                        {isEditing ? (
+                          renderEditableField(
+                            editedHolding?.quantity,
+                            (value) => setEditedHolding(prev => prev ? {...prev, quantity: value} : null),
+                            "number"
+                          )
+                        ) : (
+                          formatNumber(quantity)
+                        )}
                       </td>
+                      
+                      {/* Face Value */}
                       <td className="border border-gray-300 px-4 py-3 text-right">
-                        {formatCurrency(faceValue)}
+                        {isEditing ? (
+                          renderEditableField(
+                            editedHolding?.faceValue,
+                            (value) => setEditedHolding(prev => prev ? {...prev, faceValue: value} : null),
+                            "number"
+                          )
+                        ) : (
+                          formatCurrency(faceValue)
+                        )}
                       </td>
+                      
+                      {/* Total Value */}
                       <td className="border border-gray-300 px-4 py-3 text-right font-semibold">
                         {formatCurrency(totalValue)}
                       </td>
+                      
+                      {/* Purchase Date */}
                       <td className="border border-gray-300 px-4 py-3">
-                        {formatDate(holding.purchaseDate)}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3">
-                        {holding.distinctiveNumber?.from || holding.distinctiveNumber?.to ? (
-                          <span className="font-mono">
-                            {getSafeValue(holding.distinctiveNumber?.from, "—")} to {getSafeValue(holding.distinctiveNumber?.to, "—")}
-                          </span>
+                        {isEditing ? (
+                          renderEditableField(
+                            editedHolding?.purchaseDate,
+                            (value) => setEditedHolding(prev => prev ? {...prev, purchaseDate: value} : null),
+                            "date"
+                          )
                         ) : (
-                          "—"
+                          formatDate(holding.purchaseDate)
+                        )}
+                      </td>
+                      
+                      {/* Distinctive Numbers */}
+                      <td className="border border-gray-300 px-4 py-3">
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <Input
+                              value={editedHolding?.distinctiveNumber?.from || ""}
+                              onChange={(e) => setEditedHolding(prev => prev ? {
+                                ...prev, 
+                                distinctiveNumber: {...prev.distinctiveNumber, from: e.target.value}
+                              } : null)}
+                              placeholder="From"
+                              className="w-full"
+                            />
+                            <Input
+                              value={editedHolding?.distinctiveNumber?.to || ""}
+                              onChange={(e) => setEditedHolding(prev => prev ? {
+                                ...prev, 
+                                distinctiveNumber: {...prev.distinctiveNumber, to: e.target.value}
+                              } : null)}
+                              placeholder="To"
+                              className="w-full"
+                            />
+                          </div>
+                        ) : (
+                          holding.distinctiveNumber?.from || holding.distinctiveNumber?.to ? (
+                            <span className="font-mono">
+                              {getSafeValue(holding.distinctiveNumber?.from, "—")} to {getSafeValue(holding.distinctiveNumber?.to, "—")}
+                            </span>
+                          ) : (
+                            "—"
+                          )
+                        )}
+                      </td>
+                      
+                      {/* Actions */}
+                      <td className="border border-gray-300 px-4 py-3">
+                        {isEditing ? (
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              onClick={handleSaveEdit}
+                              disabled={updateMutation.isPending}
+                              className="h-8 px-2"
+                            >
+                              <Save className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCancelEdit}
+                              className="h-8 px-2"
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditCompany(index)}
+                              disabled={updateMutation.isPending}
+                              className="h-8 px-2"
+                            >
+                              <Edit className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteCompany(index)}
+                              disabled={updateMutation.isPending || shareHoldings.length === 1}
+                              className="h-8 px-2"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
                         )}
                       </td>
                     </tr>
