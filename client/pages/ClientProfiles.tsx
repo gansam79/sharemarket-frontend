@@ -85,7 +85,7 @@ export default function ClientProfiles() {
         params: { page, limit: 10, q }
       });
 
-      // Map the API response to match your ClientProfile interface
+      // Transform backend 'companies' to frontend 'shareHoldings'
       const mappedData = {
         ...response.data,
         data: response.data.data.map((item: any) => ({
@@ -98,22 +98,42 @@ export default function ClientProfiles() {
     }
   });
 
+  // In your mutations, transform shareHoldings to companies for the backend
   const createMutation = useMutation({
-    mutationFn: async (payload: Payload) => (await api.post<ClientProfile>("/client-profiles", payload)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["client-profiles"] });
-      setOpen(false);
-      setForm(empty);
+    mutationFn: async (payload: Payload) => {
+      const backendPayload = {
+        ...payload,
+        companies: payload.shareHoldings // Convert shareHoldings to companies for backend
+      };
+      return (await api.post<ClientProfile>("/client-profiles", backendPayload)).data;
     },
+    // ... rest of mutation
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (payload: ClientProfile) => (await api.put<ClientProfile>(`/client-profiles/${payload._id}`, payload)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["client-profiles"] });
-      setEditing(null);
+    mutationFn: async (payload: ClientProfile) => {
+      const backendPayload = {
+        ...payload,
+        companies: payload.shareHoldings // Convert shareHoldings to companies for backend
+      };
+      return (await api.put<ClientProfile>(`/client-profiles/${payload._id}`, backendPayload)).data;
     },
   });
+
+  // const updateMutation = useMutation({
+  //   mutationFn: async (payload: ClientProfile) => {
+  //     // Transform shareHoldings to companies for backend
+  //     const backendPayload = {
+  //       ...payload,
+  //       companies: payload.shareHoldings // Convert shareHoldings to companies
+  //     };
+  //     return (await api.put<ClientProfile>(`/client-profiles/${payload._id}`, backendPayload)).data;
+  //   },
+  //   onSuccess: () => {
+  //     qc.invalidateQueries({ queryKey: ["client-profiles"] });
+  //     setEditing(null);
+  //   },
+  // });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => (await api.delete(`/client-profiles/${id}`)).data,
@@ -303,9 +323,9 @@ export default function ClientProfiles() {
         </div>
       ) : (
         <div className="space-x-2">
-          <Button 
-            size="sm" 
-            variant="outline" 
+          <Button
+            size="sm"
+            variant="outline"
             onClick={() => handleViewDetails(r)}
             className="flex items-center gap-1"
           >

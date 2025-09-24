@@ -11,16 +11,19 @@ const DistinctiveSchema = new Schema(
   { _id: false }
 );
 
-// Company sub-schema
+// Company sub-schema (updated to match frontend ShareHolding interface)
 const CompanySchema = new Schema(
   {
     companyName: { type: String, required: true, trim: true },
     isinNumber: { type: String, trim: true },
     folioNumber: { type: String, trim: true },
     certificateNumber: { type: String, trim: true },
-    distinctiveNumber: DistinctiveSchema,
+    distinctiveNumber: DistinctiveSchema, // ← Changed from 'distinctive' to 'distinctiveNumber'
+    quantity: { type: Number, default: 0 }, // ← Add this missing field
+    faceValue: { type: Number, default: 0 }, // ← Add this missing field
+    purchaseDate: { type: Date } // ← Add this missing field
   },
-  { _id: true } // allow multiple companies
+  { _id: true }
 );
 
 // Bank details sub-schema
@@ -68,8 +71,8 @@ const ClientProfileSchema = new Schema(
     bankDetails: BankDetailsSchema,
     dematAccountNumber: { type: String, trim: true },
 
-    // Array of multiple companies
-    companies: [CompanySchema],
+    // Array of multiple companies (make sure this matches frontend)
+    companies: [CompanySchema], // Frontend uses 'shareHoldings' but backend uses 'companies'
 
     currentDate: { type: Date, default: Date.now },
     status: {

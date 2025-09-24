@@ -38,7 +38,7 @@ export default function ClientProfileDetails() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Client not found</h1>
-          <Button onClick={() => navigate("/client-profiles")} className="mt-4">
+          <Button onClick={() => navigate("/profiles")} className="mt-4">
             Back to Client List
           </Button>
         </div>
@@ -140,7 +140,7 @@ export default function ClientProfileDetails() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Button variant="outline" size="sm" onClick={() => navigate("/client-profiles")}>
+          <Button variant="outline" size="sm" onClick={() => navigate("/profiles")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
@@ -510,11 +510,11 @@ export default function ClientProfileDetails() {
 
       {/* Action Buttons */}
       <div className="flex justify-end space-x-4 pt-6 border-t">
-        <Button variant="outline" onClick={() => navigate("/client-profiles")}>
+        <Button variant="outline" onClick={() => navigate("/profiles")}>
           Back to List
         </Button>
         <Button 
-          onClick={() => navigate("/client-profiles", { 
+          onClick={() => navigate("/profiles", { 
             state: { editClient: client } 
           })}
         >
