@@ -8,15 +8,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Download, Printer, Plus, Eye, CheckCircle, XCircle, Edit, Trash2, Save, X } from "lucide-react";
+import { ArrowLeft, Download, Printer, Plus, Eye, CheckCircle, XCircle, Edit, Trash2, Save, X, Star, Filter } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import { api } from "@/lib/api";
 
-// Empty share holding template
-const emptyShareHolding: ShareHolding = {
+// Review status type
+type ReviewStatus = "pending" | "approved" | "rejected" | "needs_attention";
+
+// Extended ShareHolding interface with review
+interface ShareHoldingWithReview extends ShareHolding {
+  reviewStatus?: ReviewStatus;
+  reviewNotes?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+}
+
+// Empty share holding template with review
+const emptyShareHolding: ShareHoldingWithReview = {
   companyName: "",
   isinNumber: "",
   folioNumber: "",
@@ -24,24 +35,50 @@ const emptyShareHolding: ShareHolding = {
   distinctiveNumber: { from: "", to: "" },
   quantity: 0,
   faceValue: 0,
-  purchaseDate: new Date().toISOString().slice(0, 10)
+  purchaseDate: new Date().toISOString().slice(0, 10),
+  reviewStatus: "pending",
+  reviewNotes: "",
+  reviewedAt: "",
+  reviewedBy: ""
 };
 
 // Helper function to safely get share holdings
-const getShareHoldings = (client: ClientProfile | null): ShareHolding[] => {
+// Helper function to safely get share holdings with review fields
+const getShareHoldings = (client: ClientProfile | null): ShareHoldingWithReview[] => {
   if (!client) return [];
   
-  // Handle both field names - backend uses 'companies', frontend expects 'shareHoldings'
+  let holdings: ShareHoldingWithReview[] = [];
+  
   if (client.shareHoldings && Array.isArray(client.shareHoldings)) {
-    return client.shareHoldings;
+    holdings = client.shareHoldings as ShareHoldingWithReview[];
+  } else if ((client as any).companies && Array.isArray((client as any).companies)) {
+    holdings = (client as any).companies as ShareHoldingWithReview[];
   }
   
-  if ((client as any).companies && Array.isArray((client as any).companies)) {
-    return (client as any).companies;
-  }
-  
-  return [];
+  // Ensure each holding has review fields with defaults
+  return holdings.map(holding => ({
+    ...holding,
+    // For flat fields approach
+    reviewStatus: holding.reviewStatus || "pending",
+    reviewNotes: holding.reviewNotes || "",
+    reviewedAt: holding.reviewedAt || "",
+    reviewedBy: holding.reviewedBy || "",
+    
+    // OR for nested review object approach
+    // reviewStatus: holding.review?.status || "pending",
+    // reviewNotes: holding.review?.notes || "",
+    // reviewedAt: holding.review?.reviewedAt || "",
+    // reviewedBy: holding.review?.reviewedBy || "",
+  }));
 };
+
+// Review status options
+const reviewStatusOptions = [
+  { value: "pending", label: "Pending Review", color: "bg-yellow-100 text-yellow-800" },
+  { value: "approved", label: "Approved", color: "bg-green-100 text-green-800" },
+  { value: "rejected", label: "Rejected", color: "bg-red-100 text-red-800" },
+  { value: "needs_attention", label: "Needs Attention", color: "bg-orange-100 text-orange-800" }
+];
 
 export default function ClientProfileDetails() {
   const { id } = useParams();
@@ -51,13 +88,20 @@ export default function ClientProfileDetails() {
   const client = location.state?.client as ClientProfile;
   
   const [showAddCompany, setShowAddCompany] = useState(false);
-  const [newCompany, setNewCompany] = useState<ShareHolding>(emptyShareHolding);
+  const [newCompany, setNewCompany] = useState<ShareHoldingWithReview>(emptyShareHolding);
   const [reviewMode, setReviewMode] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editedHolding, setEditedHolding] = useState<ShareHolding | null>(null);
+  const [editedHolding, setEditedHolding] = useState<ShareHoldingWithReview | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<ReviewStatus | "all">("all");
+  const [showReviewDialog, setShowReviewDialog] = useState<number | null>(null);
 
   // Safely get share holdings
   const shareHoldings = getShareHoldings(client);
+
+  // Filtered holdings based on review filter
+  const filteredHoldings = reviewFilter === "all" 
+    ? shareHoldings 
+    : shareHoldings.filter(holding => holding.reviewStatus === reviewFilter);
 
   // Update mutation for client profile
   const updateMutation = useMutation({
@@ -77,6 +121,7 @@ export default function ClientProfileDetails() {
       setEditedHolding(null);
       setNewCompany(emptyShareHolding);
       setShowAddCompany(false);
+      setShowReviewDialog(null);
       
       // Navigate to refresh the state with updated client
       navigate(`/client-profiles/${client._id}`, { 
@@ -127,7 +172,7 @@ export default function ClientProfileDetails() {
   // Edit company function
   const handleEditCompany = (index: number) => {
     setEditingIndex(index);
-    setEditedHolding({ ...shareHoldings[index] });
+    setEditedHolding({ ...filteredHoldings[index] });
   };
 
   // Save edited company function
@@ -139,8 +184,19 @@ export default function ClientProfileDetails() {
       return;
     }
 
+    // Find the original index in the full array
+    const originalIndex = shareHoldings.findIndex(
+      holding => holding.companyName === filteredHoldings[editingIndex].companyName &&
+                holding.isinNumber === filteredHoldings[editingIndex].isinNumber
+    );
+
+    if (originalIndex === -1) {
+      toast.error("Company not found in the list");
+      return;
+    }
+
     const updatedHoldings = [...shareHoldings];
-    updatedHoldings[editingIndex] = editedHolding;
+    updatedHoldings[originalIndex] = editedHolding;
 
     const updatedClient = {
       ...client,
@@ -160,8 +216,49 @@ export default function ClientProfileDetails() {
   const handleDeleteCompany = (index: number) => {
     if (!confirm("Are you sure you want to delete this company?")) return;
 
-    const updatedHoldings = shareHoldings.filter((_, i) => i !== index);
+    // Find the original index in the full array
+    const originalIndex = shareHoldings.findIndex(
+      holding => holding.companyName === filteredHoldings[index].companyName &&
+                holding.isinNumber === filteredHoldings[index].isinNumber
+    );
+
+    if (originalIndex === -1) {
+      toast.error("Company not found in the list");
+      return;
+    }
+
+    const updatedHoldings = shareHoldings.filter((_, i) => i !== originalIndex);
     
+    const updatedClient = {
+      ...client,
+      shareHoldings: updatedHoldings
+    };
+
+    updateMutation.mutate(updatedClient);
+  };
+
+  // Update review status function
+  const handleUpdateReview = (index: number, status: ReviewStatus, notes: string = "") => {
+    // Find the original index in the full array
+    const originalIndex = shareHoldings.findIndex(
+      holding => holding.companyName === filteredHoldings[index].companyName &&
+                holding.isinNumber === filteredHoldings[index].isinNumber
+    );
+
+    if (originalIndex === -1) {
+      toast.error("Company not found in the list");
+      return;
+    }
+
+    const updatedHoldings = [...shareHoldings];
+    updatedHoldings[originalIndex] = {
+      ...updatedHoldings[originalIndex],
+      reviewStatus: status,
+      reviewNotes: notes,
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: "Current User" // In real app, get from auth context
+    };
+
     const updatedClient = {
       ...client,
       shareHoldings: updatedHoldings
@@ -177,6 +274,15 @@ export default function ClientProfileDetails() {
   const totalInvestment = shareHoldings.reduce((sum, holding) => 
     sum + ((holding.quantity || 0) * (holding.faceValue || 0)), 0);
 
+  // Review statistics
+  const reviewStats = {
+    total: shareHoldings.length,
+    pending: shareHoldings.filter(h => h.reviewStatus === "pending").length,
+    approved: shareHoldings.filter(h => h.reviewStatus === "approved").length,
+    rejected: shareHoldings.filter(h => h.reviewStatus === "rejected").length,
+    needs_attention: shareHoldings.filter(h => h.reviewStatus === "needs_attention").length
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Active": return "bg-green-100 text-green-800";
@@ -185,6 +291,21 @@ export default function ClientProfileDetails() {
       case "Suspended": return "bg-orange-100 text-orange-800";
       default: return "bg-gray-100 text-gray-800";
     }
+  };
+
+  // Review badge component
+  const ReviewBadge = ({ status }: { status: ReviewStatus }) => {
+    const option = reviewStatusOptions.find(opt => opt.value === status) || reviewStatusOptions[0];
+    
+    return (
+      <Badge className={`${option.color} flex items-center gap-1`}>
+        {status === "approved" && <CheckCircle className="w-3 h-3" />}
+        {status === "rejected" && <XCircle className="w-3 h-3" />}
+        {status === "pending" && <Star className="w-3 h-3" />}
+        {status === "needs_attention" && <XCircle className="w-3 h-3" />}
+        {option.label}
+      </Badge>
+    );
   };
 
   // Safe formatting functions
@@ -210,31 +331,17 @@ export default function ClientProfileDetails() {
     }
   };
 
+  const formatDateTime = (dateString: string | undefined) => {
+    if (!dateString) return "—";
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return "—";
+    }
+  };
+
   const getSafeValue = (value: any, defaultValue: any = "—") => {
     return value !== undefined && value !== null && value !== "" ? value : defaultValue;
-  };
-
-  // Review status functions
-  const getReviewStatus = (holding: ShareHolding) => {
-    const hasRequiredFields = holding.companyName && holding.isinNumber && holding.quantity > 0;
-    const hasCompleteInfo = holding.folioNumber && holding.certificateNumber;
-    
-    if (hasRequiredFields && hasCompleteInfo) return "approved";
-    if (hasRequiredFields) return "pending";
-    return "rejected";
-  };
-
-  const getReviewBadge = (status: string) => {
-    switch (status) {
-      case "approved":
-        return <Badge className="bg-green-100 text-green-800 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Approved</Badge>;
-      case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending Review</Badge>;
-      case "rejected":
-        return <Badge className="bg-red-100 text-red-800 flex items-center gap-1"><XCircle className="w-3 h-3" /> Needs Info</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
   };
 
   // Render editable input field
@@ -252,6 +359,82 @@ export default function ClientProfileDetails() {
       className="w-full"
     />
   );
+
+  // Review Dialog Component
+  const ReviewDialog = ({ index }: { index: number }) => {
+    const holding = filteredHoldings[index];
+    const [notes, setNotes] = useState(holding.reviewNotes || "");
+    const [status, setStatus] = useState<ReviewStatus>(holding.reviewStatus || "pending");
+
+    const handleSaveReview = () => {
+      handleUpdateReview(index, status, notes);
+    };
+
+    return (
+      <Dialog open={showReviewDialog === index} onOpenChange={(open) => !open && setShowReviewDialog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Review Company</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold">{holding.companyName}</h4>
+              <p className="text-sm text-muted-foreground">{holding.isinNumber}</p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="reviewStatus">Review Status</Label>
+              <Select value={status} onValueChange={(value: ReviewStatus) => setStatus(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {reviewStatusOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="reviewNotes">Review Notes</Label>
+              <textarea
+                id="reviewNotes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add any notes or comments about this company..."
+                className="w-full h-24 p-2 border rounded-md resize-none"
+              />
+            </div>
+            
+            {holding.reviewedAt && (
+              <div className="text-xs text-muted-foreground">
+                Last reviewed: {formatDateTime(holding.reviewedAt)} by {holding.reviewedBy}
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3 pt-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowReviewDialog(null)}
+                disabled={updateMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveReview}
+                disabled={updateMutation.isPending}
+              >
+                {updateMutation.isPending ? "Saving..." : "Save Review"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -305,11 +488,16 @@ export default function ClientProfileDetails() {
             <div className="flex items-center gap-2">
               <Eye className="w-5 h-5 text-blue-600" />
               <span className="font-semibold text-blue-800">Review Mode Active</span>
-              <span className="text-blue-600">• Viewing all holdings with review status</span>
+              <span className="text-blue-600">• Manage company reviews and status</span>
             </div>
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-              {shareHoldings.length} Companies
-            </Badge>
+            <div className="flex gap-4">
+              {Object.entries(reviewStats).map(([key, value]) => (
+                <div key={key} className="text-center">
+                  <div className="font-semibold">{value}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{key}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -501,6 +689,35 @@ export default function ClientProfileDetails() {
                         onChange={(e) => setNewCompany({...newCompany, purchaseDate: e.target.value})}
                       />
                     </div>
+                    {/* Review Section for New Company */}
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="reviewStatus">Initial Review Status</Label>
+                      <Select 
+                        value={newCompany.reviewStatus} 
+                        onValueChange={(value: ReviewStatus) => setNewCompany({...newCompany, reviewStatus: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {reviewStatusOptions.map(option => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="reviewNotes">Initial Review Notes</Label>
+                      <textarea
+                        id="reviewNotes"
+                        value={newCompany.reviewNotes}
+                        onChange={(e) => setNewCompany({...newCompany, reviewNotes: e.target.value})}
+                        placeholder="Add any initial notes or comments..."
+                        className="w-full h-20 p-2 border rounded-md resize-none"
+                      />
+                    </div>
                   </div>
                   <div className="flex justify-end gap-3 pt-4">
                     <Button 
@@ -528,6 +745,28 @@ export default function ClientProfileDetails() {
               Total Investment: {formatCurrency(totalInvestment)}
             </span>
           </div>
+          
+          {/* Review Filter */}
+          <div className="flex items-center gap-3 mt-4">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <Label htmlFor="reviewFilter" className="text-sm">Filter by Review:</Label>
+            <Select value={reviewFilter} onValueChange={(value: ReviewStatus | "all") => setReviewFilter(value)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Companies</SelectItem>
+                {reviewStatusOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Badge variant="outline">
+              Showing {filteredHoldings.length} of {shareHoldings.length}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="pt-6">
           {/* Share Holdings Table */}
@@ -538,7 +777,7 @@ export default function ClientProfileDetails() {
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Company #</th>
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Company Name</th>
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">ISIN Number</th>
-                  {reviewMode && <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Review Status</th>}
+                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Review Status</th>
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Folio Number</th>
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Certificate No.</th>
                   <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Quantity</th>
@@ -550,11 +789,10 @@ export default function ClientProfileDetails() {
                 </tr>
               </thead>
               <tbody>
-                {shareHoldings.map((holding: ShareHolding, index: number) => {
+                {filteredHoldings.map((holding: ShareHoldingWithReview, index: number) => {
                   const quantity = holding.quantity || 0;
                   const faceValue = holding.faceValue || 0;
                   const totalValue = quantity * faceValue;
-                  const reviewStatus = getReviewStatus(holding);
                   const isEditing = editingIndex === index;
                   
                   return (
@@ -590,11 +828,45 @@ export default function ClientProfileDetails() {
                       </td>
                       
                       {/* Review Status */}
-                      {reviewMode && (
-                        <td className="border border-gray-300 px-4 py-3">
-                          {getReviewBadge(reviewStatus)}
-                        </td>
-                      )}
+                      <td className="border border-gray-300 px-4 py-3">
+                        {isEditing ? (
+                          <Select 
+                            value={editedHolding?.reviewStatus} 
+                            onValueChange={(value: ReviewStatus) => setEditedHolding(prev => prev ? {...prev, reviewStatus: value} : null)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {reviewStatusOptions.map(option => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <ReviewBadge status={holding.reviewStatus || "pending"} />
+                            {holding.reviewNotes && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => {
+                                  // Show notes tooltip or modal
+                                  toast.info(holding.reviewNotes, {
+                                    autoClose: 5000,
+                                    position: 'top-right'
+                                  });
+                                }}
+                              >
+                                <Eye className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       
                       {/* Folio Number */}
                       <td className="border border-gray-300 px-4 py-3">
@@ -724,6 +996,15 @@ export default function ClientProfileDetails() {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => setShowReviewDialog(index)}
+                              className="h-8 px-2"
+                              title="Review Company"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => handleEditCompany(index)}
                               disabled={updateMutation.isPending}
                               className="h-8 px-2"
@@ -747,12 +1028,20 @@ export default function ClientProfileDetails() {
                 })}
               </tbody>
             </table>
+
+            {/* Review Dialogs */}
+            {filteredHoldings.map((_, index) => (
+              <ReviewDialog key={index} index={index} />
+            ))}
           </div>
 
           {/* Empty State */}
-          {shareHoldings.length === 0 && (
+          {filteredHoldings.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              No share holdings found for this client. Click "Add Company" to get started.
+              {shareHoldings.length === 0 
+                ? "No share holdings found for this client. Click 'Add Company' to get started."
+                : "No companies match the current filter criteria."
+              }
             </div>
           )}
         </CardContent>

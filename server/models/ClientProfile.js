@@ -11,6 +11,21 @@ const DistinctiveSchema = new Schema(
   { _id: false }
 );
 
+// Review sub-schema
+const ReviewSchema = new Schema(
+  {
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "needs_attention"],
+      default: "pending",
+    },
+    notes: { type: String, trim: true, default: "" },
+    reviewedAt: { type: Date },
+    reviewedBy: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
 // Company sub-schema
 const CompanySchema = new Schema(
   {
@@ -22,6 +37,16 @@ const CompanySchema = new Schema(
     quantity: { type: Number, default: 0 },
     faceValue: { type: Number, default: 0 },
     purchaseDate: { type: Date },
+    // Nested review object
+    review: {
+      type: ReviewSchema,
+      default: () => ({
+        status: "pending",
+        notes: "",
+        reviewedAt: null,
+        reviewedBy: ""
+      })
+    },
   },
   { _id: true }
 );
@@ -64,7 +89,7 @@ const ClientProfileSchema = new Schema(
     address: { type: String, trim: true },
     bankDetails: BankDetailsSchema,
     dematAccountNumber: { type: String, trim: true },
-    companies: [CompanySchema], // frontend maps shareHoldings -> companies
+    companies: [CompanySchema],
     currentDate: { type: Date, default: Date.now },
     status: {
       type: String,
@@ -77,5 +102,8 @@ const ClientProfileSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// Index for better query performance on review status
+ClientProfileSchema.index({ "companies.review.status": 1 });
 
 export default model("ClientProfile", ClientProfileSchema);
