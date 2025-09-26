@@ -19,6 +19,9 @@
   "format.fix": "prettier --write .",
   "typecheck": "tsc"
 },
+"devDependencies": {
+  "@remix-run/dev": "^X.Y.Z"
+}
 
   "dependencies": {
     "axios": "^1.12.2",
