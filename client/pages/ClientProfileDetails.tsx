@@ -17,16 +17,17 @@ import { api } from "@/lib/api";
 
 // Review status type
 type ReviewStatus = "pending" | "approved" | "rejected" | "needs_attention";
-
-// Extended ShareHolding interface with review
+// Extended ShareHolding interface with nested review
 interface ShareHoldingWithReview extends ShareHolding {
-  reviewStatus?: ReviewStatus;
-  reviewNotes?: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
+  review?: {
+    status: ReviewStatus;
+    notes?: string;
+    reviewedAt?: string;
+    reviewedBy?: string;
+  };
 }
 
-// Empty share holding template with review
+// Empty share holding template with nested review
 const emptyShareHolding: ShareHoldingWithReview = {
   companyName: "",
   isinNumber: "",
@@ -36,39 +37,35 @@ const emptyShareHolding: ShareHoldingWithReview = {
   quantity: 0,
   faceValue: 0,
   purchaseDate: new Date().toISOString().slice(0, 10),
-  reviewStatus: "pending",
-  reviewNotes: "",
-  reviewedAt: "",
-  reviewedBy: ""
+  review: {
+    status: "pending",
+    notes: "",
+    reviewedAt: "",
+    reviewedBy: ""
+  }
 };
 
-// Helper function to safely get share holdings
-// Helper function to safely get share holdings with review fields
+// Helper function to safely get share holdings with nested review
 const getShareHoldings = (client: ClientProfile | null): ShareHoldingWithReview[] => {
   if (!client) return [];
-  
+
   let holdings: ShareHoldingWithReview[] = [];
-  
+
   if (client.shareHoldings && Array.isArray(client.shareHoldings)) {
     holdings = client.shareHoldings as ShareHoldingWithReview[];
   } else if ((client as any).companies && Array.isArray((client as any).companies)) {
     holdings = (client as any).companies as ShareHoldingWithReview[];
   }
-  
-  // Ensure each holding has review fields with defaults
+
+  // Ensure each holding has nested review object with defaults
   return holdings.map(holding => ({
     ...holding,
-    // For flat fields approach
-    reviewStatus: holding.reviewStatus || "pending",
-    reviewNotes: holding.reviewNotes || "",
-    reviewedAt: holding.reviewedAt || "",
-    reviewedBy: holding.reviewedBy || "",
-    
-    // OR for nested review object approach
-    // reviewStatus: holding.review?.status || "pending",
-    // reviewNotes: holding.review?.notes || "",
-    // reviewedAt: holding.review?.reviewedAt || "",
-    // reviewedBy: holding.review?.reviewedBy || "",
+    review: {
+      status: holding.review?.status || "pending",
+      notes: holding.review?.notes || "",
+      reviewedAt: holding.review?.reviewedAt || "",
+      reviewedBy: holding.review?.reviewedBy || "",
+    }
   }));
 };
 
@@ -86,7 +83,7 @@ export default function ClientProfileDetails() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const client = location.state?.client as ClientProfile;
-  
+
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompany, setNewCompany] = useState<ShareHoldingWithReview>(emptyShareHolding);
   const [reviewMode, setReviewMode] = useState(false);
@@ -99,19 +96,28 @@ export default function ClientProfileDetails() {
   const shareHoldings = getShareHoldings(client);
 
   // Filtered holdings based on review filter
-  const filteredHoldings = reviewFilter === "all" 
-    ? shareHoldings 
-    : shareHoldings.filter(holding => holding.reviewStatus === reviewFilter);
-
+  const filteredHoldings = reviewFilter === "all"
+    ? shareHoldings
+    : shareHoldings.filter(holding => holding.review?.status === reviewFilter);
+  // Update mutation for client profile
   // Update mutation for client profile
   const updateMutation = useMutation({
     mutationFn: async (updatedClient: ClientProfile) => {
-      // Prepare the payload for the backend
+      // Prepare the payload for the backend with nested review structure
       const backendPayload = {
         ...updatedClient,
-        companies: getShareHoldings(updatedClient) // Use the correct field name for backend
+        companies: getShareHoldings(updatedClient).map(holding => ({
+          ...holding,
+          // Ensure review is properly structured for backend
+          review: holding.review ? {
+            status: holding.review.status,
+            notes: holding.review.notes,
+            reviewedAt: holding.review.reviewedAt || undefined,
+            reviewedBy: holding.review.reviewedBy || undefined,
+          } : undefined
+        }))
       };
-      
+
       return (await api.put<ClientProfile>(`/client-profiles/${updatedClient._id}`, backendPayload)).data;
     },
     onSuccess: (updatedClient) => {
@@ -122,13 +128,13 @@ export default function ClientProfileDetails() {
       setNewCompany(emptyShareHolding);
       setShowAddCompany(false);
       setShowReviewDialog(null);
-      
+
       // Navigate to refresh the state with updated client
-      navigate(`/client-profiles/${client._id}`, { 
-        state: { 
+      navigate(`/client-profiles/${client._id}`, {
+        state: {
           client: {
             ...updatedClient,
-            shareHoldings: getShareHoldings(updatedClient) // Ensure shareHoldings is set
+            shareHoldings: getShareHoldings(updatedClient)
           }
         },
         replace: true
@@ -187,7 +193,7 @@ export default function ClientProfileDetails() {
     // Find the original index in the full array
     const originalIndex = shareHoldings.findIndex(
       holding => holding.companyName === filteredHoldings[editingIndex].companyName &&
-                holding.isinNumber === filteredHoldings[editingIndex].isinNumber
+        holding.isinNumber === filteredHoldings[editingIndex].isinNumber
     );
 
     if (originalIndex === -1) {
@@ -219,7 +225,7 @@ export default function ClientProfileDetails() {
     // Find the original index in the full array
     const originalIndex = shareHoldings.findIndex(
       holding => holding.companyName === filteredHoldings[index].companyName &&
-                holding.isinNumber === filteredHoldings[index].isinNumber
+        holding.isinNumber === filteredHoldings[index].isinNumber
     );
 
     if (originalIndex === -1) {
@@ -228,7 +234,7 @@ export default function ClientProfileDetails() {
     }
 
     const updatedHoldings = shareHoldings.filter((_, i) => i !== originalIndex);
-    
+
     const updatedClient = {
       ...client,
       shareHoldings: updatedHoldings
@@ -238,11 +244,12 @@ export default function ClientProfileDetails() {
   };
 
   // Update review status function
+  // Update review status function with nested structure
   const handleUpdateReview = (index: number, status: ReviewStatus, notes: string = "") => {
     // Find the original index in the full array
     const originalIndex = shareHoldings.findIndex(
       holding => holding.companyName === filteredHoldings[index].companyName &&
-                holding.isinNumber === filteredHoldings[index].isinNumber
+        holding.isinNumber === filteredHoldings[index].isinNumber
     );
 
     if (originalIndex === -1) {
@@ -253,10 +260,12 @@ export default function ClientProfileDetails() {
     const updatedHoldings = [...shareHoldings];
     updatedHoldings[originalIndex] = {
       ...updatedHoldings[originalIndex],
-      reviewStatus: status,
-      reviewNotes: notes,
-      reviewedAt: new Date().toISOString(),
-      reviewedBy: "Current User" // In real app, get from auth context
+      review: {
+        status: status,
+        notes: notes,
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: "Current User" // In real app, get from auth context
+      }
     };
 
     const updatedClient = {
@@ -266,22 +275,21 @@ export default function ClientProfileDetails() {
 
     updateMutation.mutate(updatedClient);
   };
-
   // Safe calculations with default values - use the safe shareHoldings array
-  const totalShares = shareHoldings.reduce((sum, holding) => 
+  const totalShares = shareHoldings.reduce((sum, holding) =>
     sum + (holding.quantity || 0), 0);
-  
-  const totalInvestment = shareHoldings.reduce((sum, holding) => 
+
+  const totalInvestment = shareHoldings.reduce((sum, holding) =>
     sum + ((holding.quantity || 0) * (holding.faceValue || 0)), 0);
 
   // Review statistics
-  const reviewStats = {
-    total: shareHoldings.length,
-    pending: shareHoldings.filter(h => h.reviewStatus === "pending").length,
-    approved: shareHoldings.filter(h => h.reviewStatus === "approved").length,
-    rejected: shareHoldings.filter(h => h.reviewStatus === "rejected").length,
-    needs_attention: shareHoldings.filter(h => h.reviewStatus === "needs_attention").length
-  };
+  // const reviewStats = {
+  //   total: shareHoldings.length,
+  //   pending: shareHoldings.filter(h => h.reviewStatus === "pending").length,
+  //   approved: shareHoldings.filter(h => h.reviewStatus === "approved").length,
+  //   rejected: shareHoldings.filter(h => h.reviewStatus === "rejected").length,
+  //   needs_attention: shareHoldings.filter(h => h.reviewStatus === "needs_attention").length
+  // };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -294,9 +302,10 @@ export default function ClientProfileDetails() {
   };
 
   // Review badge component
+  // Review badge component with nested review
   const ReviewBadge = ({ status }: { status: ReviewStatus }) => {
     const option = reviewStatusOptions.find(opt => opt.value === status) || reviewStatusOptions[0];
-    
+
     return (
       <Badge className={`${option.color} flex items-center gap-1`}>
         {status === "approved" && <CheckCircle className="w-3 h-3" />}
@@ -306,6 +315,15 @@ export default function ClientProfileDetails() {
         {option.label}
       </Badge>
     );
+  };
+
+  // Review statistics with nested review
+  const reviewStats = {
+    total: shareHoldings.length,
+    pending: shareHoldings.filter(h => h.review?.status === "pending").length,
+    approved: shareHoldings.filter(h => h.review?.status === "approved").length,
+    rejected: shareHoldings.filter(h => h.review?.status === "rejected").length,
+    needs_attention: shareHoldings.filter(h => h.review?.status === "needs_attention").length
   };
 
   // Safe formatting functions
@@ -361,10 +379,11 @@ export default function ClientProfileDetails() {
   );
 
   // Review Dialog Component
+  // Review Dialog Component with nested review
   const ReviewDialog = ({ index }: { index: number }) => {
     const holding = filteredHoldings[index];
-    const [notes, setNotes] = useState(holding.reviewNotes || "");
-    const [status, setStatus] = useState<ReviewStatus>(holding.reviewStatus || "pending");
+    const [notes, setNotes] = useState(holding.review?.notes || "");
+    const [status, setStatus] = useState<ReviewStatus>(holding.review?.status || "pending");
 
     const handleSaveReview = () => {
       handleUpdateReview(index, status, notes);
@@ -381,7 +400,7 @@ export default function ClientProfileDetails() {
               <h4 className="font-semibold">{holding.companyName}</h4>
               <p className="text-sm text-muted-foreground">{holding.isinNumber}</p>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="reviewStatus">Review Status</Label>
               <Select value={status} onValueChange={(value: ReviewStatus) => setStatus(value)}>
@@ -397,7 +416,7 @@ export default function ClientProfileDetails() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="reviewNotes">Review Notes</Label>
               <textarea
@@ -408,22 +427,22 @@ export default function ClientProfileDetails() {
                 className="w-full h-24 p-2 border rounded-md resize-none"
               />
             </div>
-            
-            {holding.reviewedAt && (
+
+            {holding.review?.reviewedAt && (
               <div className="text-xs text-muted-foreground">
-                Last reviewed: {formatDateTime(holding.reviewedAt)} by {holding.reviewedBy}
+                Last reviewed: {formatDateTime(holding.review.reviewedAt)} by {holding.review.reviewedBy}
               </div>
             )}
-            
+
             <div className="flex justify-end gap-3 pt-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowReviewDialog(null)}
                 disabled={updateMutation.isPending}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleSaveReview}
                 disabled={updateMutation.isPending}
               >
@@ -451,8 +470,8 @@ export default function ClientProfileDetails() {
           </div>
         </div>
         <div className="flex space-x-2">
-          <Button 
-            variant={reviewMode ? "default" : "outline"} 
+          <Button
+            variant={reviewMode ? "default" : "outline"}
             size="sm"
             onClick={() => setReviewMode(!reviewMode)}
             className="flex items-center gap-1"
@@ -521,22 +540,22 @@ export default function ClientProfileDetails() {
               {client.shareholderName?.name3 && `, ${client.shareholderName.name3}`}
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">PAN Number</label>
             <div className="text-lg font-mono font-semibold">{getSafeValue(client.panNumber)}</div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Demat Account</label>
             <div className="text-lg font-semibold">{getSafeValue(client.dematAccountNumber)}</div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Current Date</label>
             <div className="text-lg">{formatDate(client.currentDate)}</div>
           </div>
-          
+
           <div className="space-y-2 col-span-2">
             <label className="text-sm font-medium text-muted-foreground">Address</label>
             <div className="text-lg">{getSafeValue(client.address)}</div>
@@ -554,22 +573,22 @@ export default function ClientProfileDetails() {
             <label className="text-sm font-medium text-muted-foreground">Bank Name</label>
             <div className="text-lg font-semibold">{getSafeValue(client.bankDetails?.bankName)}</div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Account Number</label>
             <div className="text-lg font-mono">{getSafeValue(client.bankDetails?.bankNumber)}</div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Branch</label>
             <div className="text-lg">{getSafeValue(client.bankDetails?.branch)}</div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">IFSC Code</label>
             <div className="text-lg font-mono font-semibold">{getSafeValue(client.bankDetails?.ifscCode)}</div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">MICR Code</label>
             <div className="text-lg font-mono">{getSafeValue(client.bankDetails?.micrCode)}</div>
@@ -584,8 +603,8 @@ export default function ClientProfileDetails() {
             <CardTitle>Share Holdings Summary</CardTitle>
             <Dialog open={showAddCompany} onOpenChange={setShowAddCompany}>
               <DialogTrigger asChild>
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   className="flex items-center gap-1"
                   disabled={updateMutation.isPending}
                 >
@@ -604,7 +623,7 @@ export default function ClientProfileDetails() {
                       <Input
                         id="companyName"
                         value={newCompany.companyName}
-                        onChange={(e) => setNewCompany({...newCompany, companyName: e.target.value})}
+                        onChange={(e) => setNewCompany({ ...newCompany, companyName: e.target.value })}
                         placeholder="Enter company name"
                       />
                     </div>
@@ -613,7 +632,7 @@ export default function ClientProfileDetails() {
                       <Input
                         id="isinNumber"
                         value={newCompany.isinNumber}
-                        onChange={(e) => setNewCompany({...newCompany, isinNumber: e.target.value.toUpperCase()})}
+                        onChange={(e) => setNewCompany({ ...newCompany, isinNumber: e.target.value.toUpperCase() })}
                         placeholder="Enter ISIN number"
                       />
                     </div>
@@ -622,7 +641,7 @@ export default function ClientProfileDetails() {
                       <Input
                         id="folioNumber"
                         value={newCompany.folioNumber}
-                        onChange={(e) => setNewCompany({...newCompany, folioNumber: e.target.value})}
+                        onChange={(e) => setNewCompany({ ...newCompany, folioNumber: e.target.value })}
                         placeholder="Enter folio number"
                       />
                     </div>
@@ -631,7 +650,7 @@ export default function ClientProfileDetails() {
                       <Input
                         id="certificateNumber"
                         value={newCompany.certificateNumber}
-                        onChange={(e) => setNewCompany({...newCompany, certificateNumber: e.target.value})}
+                        onChange={(e) => setNewCompany({ ...newCompany, certificateNumber: e.target.value })}
                         placeholder="Enter certificate number"
                       />
                     </div>
@@ -641,7 +660,7 @@ export default function ClientProfileDetails() {
                         id="quantity"
                         type="number"
                         value={newCompany.quantity}
-                        onChange={(e) => setNewCompany({...newCompany, quantity: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setNewCompany({ ...newCompany, quantity: parseInt(e.target.value) || 0 })}
                         placeholder="Enter quantity"
                       />
                     </div>
@@ -652,7 +671,7 @@ export default function ClientProfileDetails() {
                         type="number"
                         step="0.01"
                         value={newCompany.faceValue}
-                        onChange={(e) => setNewCompany({...newCompany, faceValue: parseFloat(e.target.value) || 0})}
+                        onChange={(e) => setNewCompany({ ...newCompany, faceValue: parseFloat(e.target.value) || 0 })}
                         placeholder="Enter face value"
                       />
                     </div>
@@ -662,8 +681,8 @@ export default function ClientProfileDetails() {
                         id="distinctiveFrom"
                         value={newCompany.distinctiveNumber.from}
                         onChange={(e) => setNewCompany({
-                          ...newCompany, 
-                          distinctiveNumber: {...newCompany.distinctiveNumber, from: e.target.value}
+                          ...newCompany,
+                          distinctiveNumber: { ...newCompany.distinctiveNumber, from: e.target.value }
                         })}
                         placeholder="From number"
                       />
@@ -674,8 +693,8 @@ export default function ClientProfileDetails() {
                         id="distinctiveTo"
                         value={newCompany.distinctiveNumber.to}
                         onChange={(e) => setNewCompany({
-                          ...newCompany, 
-                          distinctiveNumber: {...newCompany.distinctiveNumber, to: e.target.value}
+                          ...newCompany,
+                          distinctiveNumber: { ...newCompany.distinctiveNumber, to: e.target.value }
                         })}
                         placeholder="To number"
                       />
@@ -686,15 +705,18 @@ export default function ClientProfileDetails() {
                         id="purchaseDate"
                         type="date"
                         value={newCompany.purchaseDate}
-                        onChange={(e) => setNewCompany({...newCompany, purchaseDate: e.target.value})}
+                        onChange={(e) => setNewCompany({ ...newCompany, purchaseDate: e.target.value })}
                       />
                     </div>
                     {/* Review Section for New Company */}
                     <div className="space-y-2 col-span-2">
                       <Label htmlFor="reviewStatus">Initial Review Status</Label>
-                      <Select 
-                        value={newCompany.reviewStatus} 
-                        onValueChange={(value: ReviewStatus) => setNewCompany({...newCompany, reviewStatus: value})}
+                      <Select
+                        value={newCompany.review?.status}
+                        onValueChange={(value: ReviewStatus) => setNewCompany({
+                          ...newCompany,
+                          review: { ...newCompany.review, status: value }
+                        })}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -712,22 +734,25 @@ export default function ClientProfileDetails() {
                       <Label htmlFor="reviewNotes">Initial Review Notes</Label>
                       <textarea
                         id="reviewNotes"
-                        value={newCompany.reviewNotes}
-                        onChange={(e) => setNewCompany({...newCompany, reviewNotes: e.target.value})}
+                        value={newCompany.review?.notes || ""}
+                        onChange={(e) => setNewCompany({
+                          ...newCompany,
+                          review: { ...newCompany.review, notes: e.target.value }
+                        })}
                         placeholder="Add any initial notes or comments..."
                         className="w-full h-20 p-2 border rounded-md resize-none"
                       />
                     </div>
                   </div>
                   <div className="flex justify-end gap-3 pt-4">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => setShowAddCompany(false)}
                       disabled={updateMutation.isPending}
                     >
                       Cancel
                     </Button>
-                    <Button 
+                    <Button
                       onClick={handleAddCompany}
                       disabled={updateMutation.isPending || !newCompany.companyName || !newCompany.isinNumber}
                     >
@@ -745,7 +770,7 @@ export default function ClientProfileDetails() {
               Total Investment: {formatCurrency(totalInvestment)}
             </span>
           </div>
-          
+
           {/* Review Filter */}
           <div className="flex items-center gap-3 mt-4">
             <Filter className="w-4 h-4 text-muted-foreground" />
@@ -794,17 +819,17 @@ export default function ClientProfileDetails() {
                   const faceValue = holding.faceValue || 0;
                   const totalValue = quantity * faceValue;
                   const isEditing = editingIndex === index;
-                  
+
                   return (
                     <tr key={index} className="hover:bg-muted/30">
                       <td className="border border-gray-300 px-4 py-3 font-medium">{index + 1}</td>
-                      
+
                       {/* Company Name */}
                       <td className="border border-gray-300 px-4 py-3">
                         {isEditing ? (
                           renderEditableField(
                             editedHolding?.companyName,
-                            (value) => setEditedHolding(prev => prev ? {...prev, companyName: value} : null),
+                            (value) => setEditedHolding(prev => prev ? { ...prev, companyName: value } : null),
                             "text",
                             "Company Name"
                           )
@@ -812,13 +837,13 @@ export default function ClientProfileDetails() {
                           <span className="font-semibold">{getSafeValue(holding.companyName)}</span>
                         )}
                       </td>
-                      
+
                       {/* ISIN Number */}
                       <td className="border border-gray-300 px-4 py-3">
                         {isEditing ? (
                           renderEditableField(
                             editedHolding?.isinNumber,
-                            (value) => setEditedHolding(prev => prev ? {...prev, isinNumber: value} : null),
+                            (value) => setEditedHolding(prev => prev ? { ...prev, isinNumber: value } : null),
                             "text",
                             "ISIN Number"
                           )
@@ -826,13 +851,16 @@ export default function ClientProfileDetails() {
                           <span className="font-mono">{getSafeValue(holding.isinNumber)}</span>
                         )}
                       </td>
-                      
+
                       {/* Review Status */}
                       <td className="border border-gray-300 px-4 py-3">
                         {isEditing ? (
-                          <Select 
-                            value={editedHolding?.reviewStatus} 
-                            onValueChange={(value: ReviewStatus) => setEditedHolding(prev => prev ? {...prev, reviewStatus: value} : null)}
+                          <Select
+                            value={editedHolding?.review?.status}
+                            onValueChange={(value: ReviewStatus) => setEditedHolding(prev => prev ? {
+                              ...prev,
+                              review: { ...prev.review, status: value }
+                            } : null)}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue />
@@ -847,15 +875,14 @@ export default function ClientProfileDetails() {
                           </Select>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <ReviewBadge status={holding.reviewStatus || "pending"} />
-                            {holding.reviewNotes && (
+                            <ReviewBadge status={holding.review?.status || "pending"} />
+                            {holding.review?.notes && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 w-6 p-0"
                                 onClick={() => {
-                                  // Show notes tooltip or modal
-                                  toast.info(holding.reviewNotes, {
+                                  toast.info(holding.review?.notes, {
                                     autoClose: 5000,
                                     position: 'top-right'
                                   });
@@ -867,75 +894,75 @@ export default function ClientProfileDetails() {
                           </div>
                         )}
                       </td>
-                      
+
                       {/* Folio Number */}
                       <td className="border border-gray-300 px-4 py-3">
                         {isEditing ? (
                           renderEditableField(
                             editedHolding?.folioNumber,
-                            (value) => setEditedHolding(prev => prev ? {...prev, folioNumber: value} : null)
+                            (value) => setEditedHolding(prev => prev ? { ...prev, folioNumber: value } : null)
                           )
                         ) : (
                           getSafeValue(holding.folioNumber)
                         )}
                       </td>
-                      
+
                       {/* Certificate Number */}
                       <td className="border border-gray-300 px-4 py-3">
                         {isEditing ? (
                           renderEditableField(
                             editedHolding?.certificateNumber,
-                            (value) => setEditedHolding(prev => prev ? {...prev, certificateNumber: value} : null)
+                            (value) => setEditedHolding(prev => prev ? { ...prev, certificateNumber: value } : null)
                           )
                         ) : (
                           getSafeValue(holding.certificateNumber)
                         )}
                       </td>
-                      
+
                       {/* Quantity */}
                       <td className="border border-gray-300 px-4 py-3 text-right">
                         {isEditing ? (
                           renderEditableField(
                             editedHolding?.quantity,
-                            (value) => setEditedHolding(prev => prev ? {...prev, quantity: value} : null),
+                            (value) => setEditedHolding(prev => prev ? { ...prev, quantity: value } : null),
                             "number"
                           )
                         ) : (
                           formatNumber(quantity)
                         )}
                       </td>
-                      
+
                       {/* Face Value */}
                       <td className="border border-gray-300 px-4 py-3 text-right">
                         {isEditing ? (
                           renderEditableField(
                             editedHolding?.faceValue,
-                            (value) => setEditedHolding(prev => prev ? {...prev, faceValue: value} : null),
+                            (value) => setEditedHolding(prev => prev ? { ...prev, faceValue: value } : null),
                             "number"
                           )
                         ) : (
                           formatCurrency(faceValue)
                         )}
                       </td>
-                      
+
                       {/* Total Value */}
                       <td className="border border-gray-300 px-4 py-3 text-right font-semibold">
                         {formatCurrency(totalValue)}
                       </td>
-                      
+
                       {/* Purchase Date */}
                       <td className="border border-gray-300 px-4 py-3">
                         {isEditing ? (
                           renderEditableField(
                             editedHolding?.purchaseDate,
-                            (value) => setEditedHolding(prev => prev ? {...prev, purchaseDate: value} : null),
+                            (value) => setEditedHolding(prev => prev ? { ...prev, purchaseDate: value } : null),
                             "date"
                           )
                         ) : (
                           formatDate(holding.purchaseDate)
                         )}
                       </td>
-                      
+
                       {/* Distinctive Numbers */}
                       <td className="border border-gray-300 px-4 py-3">
                         {isEditing ? (
@@ -943,8 +970,8 @@ export default function ClientProfileDetails() {
                             <Input
                               value={editedHolding?.distinctiveNumber?.from || ""}
                               onChange={(e) => setEditedHolding(prev => prev ? {
-                                ...prev, 
-                                distinctiveNumber: {...prev.distinctiveNumber, from: e.target.value}
+                                ...prev,
+                                distinctiveNumber: { ...prev.distinctiveNumber, from: e.target.value }
                               } : null)}
                               placeholder="From"
                               className="w-full"
@@ -952,8 +979,8 @@ export default function ClientProfileDetails() {
                             <Input
                               value={editedHolding?.distinctiveNumber?.to || ""}
                               onChange={(e) => setEditedHolding(prev => prev ? {
-                                ...prev, 
-                                distinctiveNumber: {...prev.distinctiveNumber, to: e.target.value}
+                                ...prev,
+                                distinctiveNumber: { ...prev.distinctiveNumber, to: e.target.value }
                               } : null)}
                               placeholder="To"
                               className="w-full"
@@ -969,7 +996,7 @@ export default function ClientProfileDetails() {
                           )
                         )}
                       </td>
-                      
+
                       {/* Actions */}
                       <td className="border border-gray-300 px-4 py-3">
                         {isEditing ? (
@@ -1038,7 +1065,7 @@ export default function ClientProfileDetails() {
           {/* Empty State */}
           {filteredHoldings.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              {shareHoldings.length === 0 
+              {shareHoldings.length === 0
                 ? "No share holdings found for this client. Click 'Add Company' to get started."
                 : "No companies match the current filter criteria."
               }
@@ -1059,7 +1086,7 @@ export default function ClientProfileDetails() {
               {getSafeValue(client.remarks, "No remarks provided")}
             </div>
           </div>
-          
+
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">Dividend Information</label>
@@ -1087,9 +1114,9 @@ export default function ClientProfileDetails() {
         <Button variant="outline" onClick={() => navigate("/profiles")}>
           Back to List
         </Button>
-        <Button 
-          onClick={() => navigate("/profiles", { 
-            state: { editClient: client } 
+        <Button
+          onClick={() => navigate("/profiles", {
+            state: { editClient: client }
           })}
         >
           Edit Profile
