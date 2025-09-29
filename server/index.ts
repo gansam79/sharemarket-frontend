@@ -1,55 +1,60 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { handleDemo } from "./routes/demo";
-import { getMarketData } from "./routes/market";
-import { addEmail, listEmails } from "./routes/email";
+import mongoose from "mongoose";
+
+import { handleDemo } from "./routes/demo.js";
+import { getMarketData } from "./routes/market.js";
+import { addEmail, listEmails } from "./routes/email.js";
 import { connectDB } from "./db.js";
+
 import shareholdersRouter from "./routes/shareholderRoutes.js";
 import dmatRouter from "./routes/dmatRoutes.js";
 import clientProfilesRouter from "./routes/clientProfileRoutes.js";
-import mongoose from "mongoose";
 
-export function createServer() {
-  const app = express();
+const app = express();
 
-  // Middleware
-  app.use(cors());
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-  // Example API routes
-  app.get("/api/ping", (_req, res) => {
-    const ping = process.env.PING_MESSAGE ?? "ping";
-    res.json({ message: ping });
-  });
+// ✅ Health check / simple test
+app.get("/api/hello", (_req, res) => {
+  res.json({ message: "Hello from backend" });
+});
 
-  app.get("/api/demo", handleDemo);
+// ✅ Example API routes
+app.get("/api/ping", (_req, res) => {
+  const ping = process.env.PING_MESSAGE ?? "ping";
+  res.json({ message: ping });
+});
 
-  // Market data (mock; integrate Moneycontrol/NSE by replacing implementation)
-  app.get("/api/market", getMarketData);
+app.get("/api/demo", handleDemo);
 
-  // Email log (mock)
-  app.get("/api/email", listEmails);
-  app.post("/api/email", addEmail);
+// Market data (mock for now)
+app.get("/api/market", getMarketData);
 
-  // Connect to Mongo (no-op if MONGODB_URI is not set)
-  connectDB();
+// Email log (mock)
+app.get("/api/email", listEmails);
+app.post("/api/email", addEmail);
 
-  // Mongo-backed CRUD APIs (only if DB configured)
-  if (process.env.MONGODB_URI) {
-    const ensureDB: import("express").RequestHandler = (_req, res, next) => {
-      // 1 = connected, 2 = connecting, 0 = disconnected
-      const state = mongoose.connection.readyState;
-      if (state !== 1) {
-        return res.status(503).json({ error: "Database not connected" });
-      }
-      next();
-    };
-    app.use("/api/shareholders", ensureDB, shareholdersRouter);
-    app.use("/api/dmat", ensureDB, dmatRouter);
-    app.use("/api/client-profiles", ensureDB, clientProfilesRouter);
-  }
+// ✅ Connect to MongoDB
+connectDB();
 
-  return app;
+// Mongo-backed CRUD APIs (only if DB configured)
+if (process.env.MONGODB_URI) {
+  const ensureDB: import("express").RequestHandler = (_req, res, next) => {
+    const state = mongoose.connection.readyState;
+    if (state !== 1) {
+      return res.status(503).json({ error: "Database not connected" });
+    }
+    next();
+  };
+
+  app.use("/api/shareholders", ensureDB, shareholdersRouter);
+  app.use("/api/dmat", ensureDB, dmatRouter);
+  app.use("/api/client-profiles", ensureDB, clientProfilesRouter);
 }
+
+export default app;
