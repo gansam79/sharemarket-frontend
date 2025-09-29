@@ -21,6 +21,9 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+  "react": "^18.x",
+  "react-dom": "^18.x",
+  "react-router-dom": "^6.x",
     "axios": "^1.12.2",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
