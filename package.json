@@ -11,12 +11,12 @@
     ]
   },
 "scripts": {
-  "dev": "vite",
-  "build": "npm run build:client && npm run build:server",
+    "dev": "concurrently \"cd client && pnpm dev\" \"cd server && pnpm dev\"",
+    "build": "cd client && pnpm install && pnpm build && cd .. && cd server && pnpm install",
   "build:client": "vite build",
   "build:server": "vite build --config vite.config.server.ts",
-  "start": "node dist/server/node-build.mjs",
-  "vercel-build": "npm run build:client",
+    "start": "node server/server.js"
+,  "vercel-build": "npm run build:client",
   "preview": "vite preview",
 
   "test": "vitest --run",

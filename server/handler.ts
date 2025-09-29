@@ -1,4 +1,4 @@
 import serverless from "serverless-http";
-import app from "../server/index"; // your express app export
+import app from "../server/index"; // uses your Express app
 
 export default serverless(app);
