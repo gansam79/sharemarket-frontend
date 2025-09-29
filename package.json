@@ -12,7 +12,7 @@
   },
 "scripts": {
     "dev": "concurrently \"cd client && pnpm dev\" \"cd server && pnpm dev\"",
-    "build": "cd client && pnpm install && pnpm build && cd .. && cd server && pnpm install",
+    "build": "cd client && pnpm install && pnpm build",
   "build:client": "vite build",
   "build:server": "vite build --config vite.config.server.ts",
     "start": "node server/server.js"

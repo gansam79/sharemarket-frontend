@@ -8,11 +8,11 @@
     {
       "src": "client/vite.config.ts",
       "use": "@vercel/static-build",
-      "config": { "distDir": "client/dist" }
+      "config": { "distDir": "dist/spa" }
     }
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/handler" },
-    { "source": "/(.*)", "destination": "/client/dist/$1" }
+    { "source": "/(.*)", "destination": "/dist/spa/$1" }
   ]
 }
