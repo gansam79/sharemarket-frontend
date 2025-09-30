@@ -546,9 +546,27 @@ export default function ClientProfileDetails() {
             <div className="text-lg font-mono font-semibold">{getSafeValue(client.panNumber)}</div>
           </div>
 
+          {/* New Aadhaar Number Field */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Demat Account</label>
+            <label className="text-sm font-medium text-muted-foreground">Aadhaar Number</label>
+            <div className="text-lg font-mono font-semibold">{getSafeValue(client.aadhaarNumber)}</div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Demat Account Number</label>
             <div className="text-lg font-semibold">{getSafeValue(client.dematAccountNumber)}</div>
+          </div>
+
+          {/* New DMAT Created With Field */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Demat Account Created With</label>
+            <div className="text-lg font-semibold">{getSafeValue(client.dematCreatedWith)}</div>
+          </div>
+
+          {/* New DMAT Created With Person Field */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">DMAT Account Created By (Person)</label>
+            <div className="text-lg font-semibold">{getSafeValue(client.dematCreatedWithPerson)}</div>
           </div>
 
           <div className="space-y-2">
